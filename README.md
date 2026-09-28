@@ -2,7 +2,7 @@
 
 Bot de trading forex automatisé. Voir [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) pour l'architecture et la feuille de route, et [maquette/](maquette/) pour la maquette du tableau de bord.
 
-**État : backtest opérationnel (phases 0 à 3).** Le bot ne passe encore aucun ordre réel.
+**État : backtest et laboratoire opérationnels (phases 0 à 3).** Le bot ne passe encore aucun ordre réel.
 
 ## Installation
 
@@ -20,6 +20,12 @@ uv run kobr4 data download --symbols EUR/USD,GBP/USD --start 2023-01-01   # hist
 uv run kobr4 data import-histdata DAT_ASCII_EURUSD_M1_2024.csv --symbol EUR/USD
 uv run kobr4 data info                    # couverture et qualité de l'historique
 uv run kobr4 backtest --config config/backtest.yaml --start 2023-01-01   # rapport dans reports/
+
+# Laboratoire : chercher de meilleurs réglages, sans jamais toucher au bot en cours
+uv run kobr4 lab optimize --config config/backtest.yaml --strategy ema-cross-h1 --start 2019-01-01 --end 2025-12-31
+uv run kobr4 lab list
+uv run kobr4 lab approve <id>              # puis :
+uv run kobr4 lab apply <id> --config config/paper.yaml   # version +1, sauvegarde de l'ancienne
 
 # Sans données réelles : historique synthétique, pour tester la chaîne uniquement
 uv run kobr4 data --store data-synth synth --symbols EUR/USD,GBP/USD,USD/JPY --start 2022-01-01 --end 2024-12-31
@@ -53,5 +59,6 @@ src/kobr4/
 ├── execution/   # interface courtier, courtier simulé, OMS
 ├── portfolio/   # positions, solde, équité, drawdown
 ├── backtest/    # moteur de rejeu, statistiques, rapport HTML
+├── lab/         # optimisation walk-forward, stabilité, Sharpe dégonflé, propositions
 └── app.py    # point d'entrée
 ```

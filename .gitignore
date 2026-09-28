@@ -13,3 +13,4 @@ config/live.yaml
 data/
 reports/
 data-synth/
+lab/

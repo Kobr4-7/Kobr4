@@ -16,6 +16,7 @@ from kobr4.backtest import cli as backtest_cli
 from kobr4.config import ConfigError, Mode, Settings, load_settings
 from kobr4.core.bus import EventBus, InMemoryEventBus
 from kobr4.core.clock import Clock, LiveClock, SimulatedClock
+from kobr4.lab import cli as lab_cli
 from kobr4.marketdata import cli as data_cli
 
 log = logging.getLogger("kobr4")
@@ -47,6 +48,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     run_p.add_argument("--config", required=True, help="fichier de configuration YAML")
     data_cli.add_parser(sub)
     backtest_cli.add_parser(sub)
+    lab_cli.add_parser(sub)
     args = parser.parse_args(argv)
 
     logging.basicConfig(
@@ -56,6 +58,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return data_cli.run(args)
     if args.cmd == "backtest":
         return backtest_cli.run(args)
+    if args.cmd == "lab":
+        return lab_cli.run(args)
     return _run(args.config)
 
 

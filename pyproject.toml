@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "numpy>=2.5.3",
+    "optuna>=5.0.0",
     "polars>=1.44.2",
     "pydantic>=2.8",
     "pyyaml>=6.0",
@@ -58,3 +59,4 @@ addopts = "-q"
 
 [tool.ruff.lint.per-file-ignores]
 "src/kobr4/backtest/report.py" = ["E501"]
+"src/kobr4/lab/cli.py" = ["E501"]

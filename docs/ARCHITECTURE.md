@@ -395,5 +395,6 @@ Kobr4/
 
 **Avancement**
 - Phase 0 terminée : modèles du domaine, cycle de vie des ordres, bus d'événements, horloges, configuration validée, CI.
+- Phase 2b terminée : laboratoire (`kobr4 lab optimize | list | approve | reject | apply`), optimisation Optuna en parallèle, walk-forward, période réservée comparée aux réglages actuels, stabilité, Sharpe dégonflé, critères d'acceptation, propositions versionnées avec rapport HTML.
 - Phases 2 et 3 terminées : trois stratégies (croisement EMA, RSI, cassure), gestionnaire de risque complet, OMS avec réconciliation, courtier simulé, moteur de backtest et rapport HTML (`kobr4 backtest`).
 - Phase 1 en cours : historique M1 (Dukascopy, HistData), stockage Parquet, agrégation en H1/H4/D1, construction des bougies en direct, contrôle qualité. Reste : télécharger les 3 ans d'historique, puis l'adaptateur OANDA en lecture une fois le compte démo ouvert.

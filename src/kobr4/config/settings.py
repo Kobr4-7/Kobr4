@@ -91,6 +91,8 @@ class BacktestSettings(_Strict):
 class StrategySettings(_Strict):
     id: str = Field(min_length=1, pattern=r"^[a-z0-9_-]+$")
     kind: str = Field(min_length=1)
+    version: int = Field(default=1, ge=1)
+    """Incrémentée à chaque changement de paramètres validé (laboratoire)."""
     enabled: bool = True
     instruments: list[str] = Field(min_length=1)
     timeframe: Timeframe
