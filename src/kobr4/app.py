@@ -20,6 +20,7 @@ from kobr4.core.clock import Clock, LiveClock, SimulatedClock
 from kobr4.lab import cli as lab_cli
 from kobr4.live.standalone import run_standalone
 from kobr4.marketdata import cli as data_cli
+from kobr4.web import cli as server_cli
 
 log = logging.getLogger("kobr4")
 
@@ -54,6 +55,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     data_cli.add_parser(sub)
     backtest_cli.add_parser(sub)
     lab_cli.add_parser(sub)
+    server_cli.add_parser(sub)
     args = parser.parse_args(argv)
 
     logging.basicConfig(
@@ -65,6 +67,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return backtest_cli.run(args)
     if args.cmd == "lab":
         return lab_cli.run(args)
+    if args.cmd == "server":
+        return server_cli.run(args)
     return _run(args.config, args.check)
 
 

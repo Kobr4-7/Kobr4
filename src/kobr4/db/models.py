@@ -65,6 +65,7 @@ class Base(DeclarativeBase):
         datetime: UtcDateTime,
         Decimal: Money,
         dict[str, Any]: Json,
+        list[str]: Json,
     }
 
 
@@ -81,6 +82,8 @@ class User(Base):
     totp_secret: Mapped[str | None] = mapped_column(Text)
     """Chiffré."""
     totp_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    recovery_codes: Mapped[list[str]] = mapped_column(Json, default=list)
+    """Empreintes des codes de secours de la double authentification (usage unique)."""
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
     onboarding_step: Mapped[str] = mapped_column(String(32), default="profile")
     base_currency: Mapped[str] = mapped_column(String(3), default="USD")

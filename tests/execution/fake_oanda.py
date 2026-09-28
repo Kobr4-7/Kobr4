@@ -59,6 +59,10 @@ class FakeOanda:
         self.requests.append((request.method, path, body))
         base = f"/v3/accounts/{self.account_id}"
         m = request.method
+        if path == "/v3/accounts":
+            return httpx.Response(200, json={"accounts": [{"id": self.account_id, "tags": []}]})
+        if path.startswith("/v3/accounts/") and not path.startswith(base):
+            return httpx.Response(403, json={"errorMessage": "Unauthorized access to account"})
         if path == f"{base}/summary":
             return httpx.Response(200, json={"account": self.summary()})
         if path == f"{base}/openTrades":
