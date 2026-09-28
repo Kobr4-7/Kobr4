@@ -76,6 +76,9 @@ class RiskSettings(_Strict):
     max_positions_per_symbol_strategy: int = Field(default=1, ge=1)
     max_currency_risk_pct: Decimal = Field(default=Decimal("3"), gt=0, le=20)
     max_daily_loss_pct: Decimal = Field(default=Decimal("3"), gt=0, le=20)
+    max_weekly_loss_pct: Decimal | None = Field(default=None, gt=0, le=30)
+    """Perte maximale sur la semaine (lundi-vendredi) : au-delà, plus d'entrée jusqu'au
+    lundi suivant. Aucune limite si vide."""
     max_drawdown_pct: Decimal = Field(default=Decimal("10"), gt=0, le=50)
     max_spread_multiplier: Decimal = Field(default=Decimal("2"), ge=1)
     news_blackout_minutes: int = Field(default=30, ge=0)
@@ -92,6 +95,11 @@ class RiskSettings(_Strict):
             raise ValueError("le risque par trade dépasse la perte journalière maximale")
         if self.max_daily_loss_pct > self.max_drawdown_pct:
             raise ValueError("la perte journalière maximale dépasse le drawdown maximal")
+        if self.max_weekly_loss_pct is not None:
+            if self.risk_per_trade_pct > self.max_weekly_loss_pct:
+                raise ValueError("le risque par trade dépasse la perte hebdomadaire maximale")
+            if self.max_weekly_loss_pct > self.max_drawdown_pct:
+                raise ValueError("la perte hebdomadaire maximale dépasse le drawdown maximal")
         return self
 
 

@@ -132,7 +132,12 @@ function BotDashboard({
       <section className="kpis" aria-label="Résumé du compte">
         <Kpi label="Équité" value={money(live?.equity, ccy)} sub={`Solde ${money(live?.balance, ccy)}`} />
         <Kpi label="P&L flottant" value={signed(live ? floating : null, ccy)} tone={cls(floating)} sub={`${live?.positions.length ?? 0} positions ouvertes`} />
-        <Kpi label="Perte du jour" value={pct(live ? -num(live.daily_loss_pct) : null)} tone={num(live?.daily_loss_pct) > 0 ? "down" : ""} sub={`Limite ${risk.max_daily_loss_pct} %`} />
+        <Kpi
+          label="Cette semaine"
+          value={pct(live?.weekly_pnl_pct != null ? num(live.weekly_pnl_pct) : null)}
+          tone={cls(live?.weekly_pnl_pct ?? 0)}
+          sub={risk.max_weekly_loss_pct ? `Pause si −${risk.max_weekly_loss_pct} %` : `Jour : −${pct(live?.daily_loss_pct ?? 0)} / ${risk.max_daily_loss_pct} %`}
+        />
         <Kpi label="Drawdown" value={pct(live ? -num(live.drawdown_pct) : null)} tone={num(live?.drawdown_pct) > 0 ? "down" : ""} sub={`Arrêt à ${risk.max_drawdown_pct} %`} />
       </section>
 
@@ -168,11 +173,15 @@ function BotDashboard({
           <Panel title="Risque">
             <div className="panel-b">
               <Meter label="Perte du jour" value={num(live?.daily_loss_pct ?? 0)} max={num(risk.max_daily_loss_pct)} text={`${pct(live?.daily_loss_pct ?? 0)} / ${risk.max_daily_loss_pct} %`} />
+              {risk.max_weekly_loss_pct ? (
+                <Meter label="Perte de la semaine" value={num(live?.weekly_loss_pct ?? 0)} max={num(risk.max_weekly_loss_pct)} text={`${pct(live?.weekly_loss_pct ?? 0)} / ${risk.max_weekly_loss_pct} %`} />
+              ) : null}
               <Meter label="Drawdown" value={num(live?.drawdown_pct ?? 0)} max={num(risk.max_drawdown_pct)} text={`${pct(live?.drawdown_pct ?? 0)} / ${risk.max_drawdown_pct} %`} />
               <Meter label="Positions ouvertes" value={live?.positions.length ?? 0} max={num(risk.max_open_positions)} text={`${live?.positions.length ?? 0} / ${risk.max_open_positions}`} />
               <p className="muted" style={{ fontSize: 12.5 }}>Risque par trade : {risk.risk_per_trade_pct} % de l'équité.</p>
             </div>
           </Panel>
+          <WeeklyResults botId={bot.id} ccy={ccy} />
           <Panel title="Stratégies">
             <div className="panel-b">
               {bot.config.strategies.map((s) => {
@@ -271,6 +280,62 @@ function CandlePanel({ botId, symbol, timeframe, running, positions }: { botId: 
         <div className="chart-box chart-empty"><p className="muted">Chargement du graphique…</p></div>
       )}
     </div>
+  );
+}
+
+/** Résultat de chaque semaine (lundi-vendredi), d'après la courbe d'équité. */
+function WeeklyResults({ botId, ccy }: { botId: string; ccy: string }) {
+  const { data } = useLoad<{ ts: string; equity: string }[]>(`/api/bots/${botId}/equity?days=120`);
+  const weeks = useMemo(() => {
+    if (!data || data.length < 2) return [];
+    const monday = (iso: string) => {
+      const d = new Date(iso);
+      const day = (d.getUTCDay() + 6) % 7;
+      return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - day);
+    };
+    const last = new Map<number, number>();
+    const first = new Map<number, number>();
+    for (const p of data) {
+      const k = monday(p.ts);
+      if (!first.has(k)) first.set(k, num(p.equity));
+      last.set(k, num(p.equity));
+    }
+    const keys = [...last.keys()].sort((a, b) => a - b);
+    return keys
+      .map((k, i) => {
+        const start = i > 0 ? last.get(keys[i - 1]!)! : first.get(k)!;
+        const end = last.get(k)!;
+        return { week: k, pnl: end - start, pct: start > 0 ? ((end - start) / start) * 100 : 0 };
+      })
+      .slice(-12);
+  }, [data]);
+  const won = weeks.filter((w) => w.pnl > 0).length;
+  const total = weeks.reduce((a, w) => a + w.pnl, 0);
+  const max = Math.max(0.01, ...weeks.map((w) => Math.abs(w.pct)));
+  return (
+    <Panel title="Semaine par semaine" actions={weeks.length ? <span className={`num ${cls(total)}`} style={{ fontSize: 13 }}>{signed(total, ccy)}</span> : undefined}>
+      <div className="panel-b">
+        {weeks.length === 0 ? (
+          <p className="muted">Les résultats hebdomadaires apparaîtront après quelques jours de fonctionnement.</p>
+        ) : (
+          <>
+            <div className="weeks" role="img" aria-label="Résultat de chaque semaine">
+              {weeks.map((w) => (
+                <div key={w.week} className="wk" title={`Semaine du ${new Date(w.week).toLocaleDateString("fr-FR")} : ${signed(w.pnl, ccy)} (${w.pct.toFixed(2)} %)`}>
+                  <div className="wk-bar">
+                    <i className={w.pnl >= 0 ? "pos" : "neg"} style={{ height: `${(Math.abs(w.pct) / max) * 100}%` }} />
+                  </div>
+                  <span>{new Date(w.week).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" })}</span>
+                </div>
+              ))}
+            </div>
+            <p className="muted" style={{ fontSize: 12.5 }}>
+              {won} semaine{won > 1 ? "s" : ""} gagnante{won > 1 ? "s" : ""} sur {weeks.length}. En suivi de tendance, quelques très bonnes semaines paient les petites semaines perdantes : c'est le total qui compte.
+            </p>
+          </>
+        )}
+      </div>
+    </Panel>
   );
 }
 

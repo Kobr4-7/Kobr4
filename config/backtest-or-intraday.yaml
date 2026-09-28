@@ -1,0 +1,39 @@
+# Or en intraday : cassure du plus haut des 24 dernières heures (48 bougies M30),
+# achats seulement, stop à 2,5 ATR, objectif 60 $ par once.
+# Gestion à la semaine : la perte du jour peut aller jusqu'à 4 % sans alerte, et une
+# semaine à −4 % suspend les entrées jusqu'au lundi.
+# Sur XAU/USD 2019-2026 (HistData, spread 0,30 $) : +119 %, baisse maximale 12 %,
+# Sharpe 1,03 ; environ 2 trades par semaine, 45 % de semaines gagnantes (les bonnes
+# semaines pèsent bien plus que les mauvaises).
+# Lancer : kobr4 backtest --config config/backtest-or-intraday.yaml --start 2019-01-01
+mode: backtest
+base_currency: USD
+
+instruments: [XAU/USD]
+
+broker:
+  name: simulated
+
+risk:
+  risk_per_trade_pct: 0.5
+  max_open_positions: 1
+  max_currency_risk_pct: 3
+  max_daily_loss_pct: 4
+  max_weekly_loss_pct: 4
+  max_drawdown_pct: 20
+
+strategies:
+  - id: or-cassure-m30
+    kind: breakout
+    instruments: [XAU/USD]
+    timeframe: M30
+    params:
+      lookback: 48
+      atr_stop: 2.5
+      take_profit_pips: 60
+      direction: long
+
+backtest:
+  initial_balance: 10000
+  slippage_pips: 0.05
+  commission_per_million: 0

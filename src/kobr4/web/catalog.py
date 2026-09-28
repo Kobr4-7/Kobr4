@@ -40,6 +40,7 @@ RISK_PRESETS: dict[str, dict[str, Any]] = {
         "max_open_positions": 3,
         "max_currency_risk_pct": 1.5,
         "max_daily_loss_pct": 2,
+        "max_weekly_loss_pct": 4,
         "max_drawdown_pct": 8,
     },
     "equilibre": {
@@ -48,6 +49,7 @@ RISK_PRESETS: dict[str, dict[str, Any]] = {
         "max_open_positions": 5,
         "max_currency_risk_pct": 3,
         "max_daily_loss_pct": 3,
+        "max_weekly_loss_pct": 6,
         "max_drawdown_pct": 10,
     },
     "dynamique": {
@@ -56,6 +58,7 @@ RISK_PRESETS: dict[str, dict[str, Any]] = {
         "max_open_positions": 6,
         "max_currency_risk_pct": 5,
         "max_daily_loss_pct": 5,
+        "max_weekly_loss_pct": 10,
         "max_drawdown_pct": 15,
     },
 }

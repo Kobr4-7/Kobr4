@@ -97,7 +97,9 @@ async def env(tmp_path: Path) -> AsyncIterator[Env]:
     store.write_m1("EUR/USD", generate_m1("EUR/USD", date(2024, 1, 1), date(2024, 3, 31), seed=2))
     (store.root / MARKER).write_text("x", encoding="utf-8")
     config = ServerConfig(
-        database_url="sqlite+aiosqlite:///:memory:",
+        # Base dans un fichier : en mémoire, toutes les sessions partagent une seule
+        # connexion et le rollback de l'une peut effacer l'écriture en cours d'une autre.
+        database_url=f"sqlite+aiosqlite:///{tmp_path / 'kobr4.db'}",
         master_key=key,
         data_dir=store.root,
         invite_code="bienvenue",

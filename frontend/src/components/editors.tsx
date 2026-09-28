@@ -7,6 +7,7 @@ const RISK_FIELDS: { key: string; label: string; hint: string; step: number }[] 
   { key: "max_open_positions", label: "Positions ouvertes max", hint: "Toutes paires confondues", step: 1 },
   { key: "max_currency_risk_pct", label: "Risque max par devise (%)", hint: "Cumul des positions exposées à une même devise", step: 0.5 },
   { key: "max_daily_loss_pct", label: "Perte journalière max (%)", hint: "Au-delà, plus d'entrée jusqu'au lendemain", step: 0.5 },
+  { key: "max_weekly_loss_pct", label: "Perte hebdomadaire max (%)", hint: "Au-delà, plus d'entrée jusqu'au lundi (0 : pas de limite)", step: 0.5 },
   { key: "max_drawdown_pct", label: "Drawdown max (%)", hint: "Au-delà, arrêt d'urgence et intervention manuelle", step: 1 },
 ];
 
@@ -232,7 +233,8 @@ export function botPayload(strategies: StrategyConfig[], risk: RiskValues) {
   const instruments = [...new Set(strategies.flatMap((s) => s.instruments))];
   return {
     instruments,
-    risk,
+    // 0 pour la limite hebdomadaire veut dire « pas de limite ».
+    risk: { ...risk, max_weekly_loss_pct: risk.max_weekly_loss_pct ? risk.max_weekly_loss_pct : null },
     strategies: strategies.map((s) => ({ ...s, id: s.id || `${s.kind}-${s.timeframe}`.toLowerCase() })),
   };
 }

@@ -21,7 +21,9 @@ async def client(tmp_path: Path) -> AsyncIterator[httpx.AsyncClient]:
     ctl = tmp_path / "control"
     ctl.mkdir()
     config = ServerConfig(
-        database_url="sqlite+aiosqlite:///:memory:",
+        # Base dans un fichier : en mémoire, toutes les sessions partagent une seule
+        # connexion et le rollback de l'une peut effacer l'écriture en cours d'une autre.
+        database_url=f"sqlite+aiosqlite:///{tmp_path / 'kobr4.db'}",
         master_key=key,
         data_dir=tmp_path,
         control_dir=ctl,

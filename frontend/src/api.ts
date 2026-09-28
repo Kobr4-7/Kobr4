@@ -114,6 +114,8 @@ export type LiveStatus = {
   equity: string;
   drawdown_pct: string;
   daily_loss_pct: string;
+  weekly_pnl_pct?: string;
+  weekly_loss_pct?: string;
   stale: string[];
   strategies: { id: string; kind: string; enabled: boolean; regime: Record<string, string> }[];
   positions: Position[];

@@ -39,6 +39,9 @@ class Portfolio:
         self.peak_equity = initial_balance
         self._day: date | None = None
         self.day_start_equity = initial_balance
+        self._week: tuple[int, int] | None = None
+        self.week_start_equity = initial_balance
+        """Équité au début de la semaine (lundi 0 h UTC, semaine ISO)."""
 
     # Changements signalés par le courtier
 
@@ -90,6 +93,16 @@ class Portfolio:
             return Decimal(0)
         return max(Decimal(0), (self.peak_equity - eq) / self.peak_equity * 100)
 
+    def weekly_pnl_pct(self, equity: Decimal | None = None) -> Decimal:
+        """Résultat de la semaine en cours, en % de l'équité du lundi (positif = gain)."""
+        eq = self.equity() if equity is None else equity
+        if self.week_start_equity <= 0:
+            return Decimal(0)
+        return (eq - self.week_start_equity) / self.week_start_equity * 100
+
+    def weekly_loss_pct(self, equity: Decimal | None = None) -> Decimal:
+        return max(Decimal(0), -self.weekly_pnl_pct(equity))
+
     def daily_loss_pct(self, equity: Decimal | None = None) -> Decimal:
         eq = self.equity() if equity is None else equity
         if self.day_start_equity <= 0:
@@ -113,6 +126,10 @@ class Portfolio:
         if self._day != ts.date():
             self._day = ts.date()
             self.day_start_equity = equity
+        week = ts.isocalendar()[:2]
+        if self._week != week:
+            self._week = (week[0], week[1])
+            self.week_start_equity = equity
         self.peak_equity = max(self.peak_equity, equity)
         snap = EquitySnapshot(
             ts=ts, balance=self.balance, equity=equity, open_positions=len(self.open_positions)

@@ -534,3 +534,12 @@ td.r, th.r { text-align: right; }
   margin: 0; padding: 12px 14px; max-height: 240px; overflow: auto; border-radius: 10px; font: 12px/1.5 var(--mono);
   background: var(--surface-2); border: 1px solid var(--line); color: var(--ink-2); white-space: pre-wrap;
 }
+
+/* Semaine par semaine */
+.weeks { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 6px; align-items: end; height: 120px; }
+.wk { display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; min-width: 0; }
+.wk-bar { flex: 1; width: 100%; display: flex; align-items: flex-end; justify-content: center; border-bottom: 1px solid var(--line); }
+.wk-bar i { display: block; width: 70%; min-height: 2px; border-radius: 4px 4px 0 0; }
+.wk-bar i.pos { background: var(--up); }
+.wk-bar i.neg { background: var(--down); opacity: 0.85; }
+.wk span { font: 10px var(--mono); color: var(--faint); white-space: nowrap; }

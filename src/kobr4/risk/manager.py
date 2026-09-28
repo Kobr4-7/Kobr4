@@ -71,6 +71,7 @@ class RiskManager:
         self.signal_filters = signal_filters or []
         self.kill_switch: str | None = None
         self.halted_until_day: object | None = None
+        self.halted_week: tuple[int, int] | None = None
         self.stale: set[str] = set()
         self.rejections: dict[str, int] = {}
 
@@ -113,6 +114,19 @@ class RiskManager:
                     f"{detail} : intervention manuelle requise", close_positions=False
                 )
                 return
+        week = e.ts.isocalendar()[:2]
+        if s.max_weekly_loss_pct is not None and self.halted_week != week:
+            wloss = self.portfolio.weekly_loss_pct(e.equity)
+            if wloss >= s.max_weekly_loss_pct:
+                self.halted_week = (week[0], week[1])
+                await self.bus.publish(
+                    RiskLimitReached(
+                        ts=e.ts,
+                        rule="max_weekly_loss",
+                        detail=f"perte de la semaine {wloss:.2f} % ≥ {s.max_weekly_loss_pct} %,"
+                        " entrées suspendues jusqu'à lundi 0h UTC",
+                    )
+                )
         if self.halted_until_day != e.ts.date():
             loss = self.portfolio.daily_loss_pct(e.equity)
             if loss >= s.max_daily_loss_pct:
@@ -146,6 +160,8 @@ class RiskManager:
             return Rejection("kill_switch", f"arrêt d'urgence actif ({self.kill_switch})")
         if self.halted_until_day == now.date():
             return Rejection("max_daily_loss", "perte journalière maximale atteinte")
+        if self.halted_week == now.isocalendar()[:2]:
+            return Rejection("max_weekly_loss", "perte hebdomadaire maximale atteinte")
         if intent.symbol in self.stale:
             return Rejection("stale_data", "cotations interrompues sur cet instrument")
 

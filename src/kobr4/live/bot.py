@@ -317,6 +317,8 @@ class LiveBot:
             "equity": str(equity),
             "drawdown_pct": str(round(self.portfolio.drawdown_pct(equity), 2)),
             "daily_loss_pct": str(round(self.portfolio.daily_loss_pct(equity), 2)),
+            "weekly_pnl_pct": str(round(self.portfolio.weekly_pnl_pct(equity), 2)),
+            "weekly_loss_pct": str(round(self.portfolio.weekly_loss_pct(equity), 2)),
             "stale": sorted(self.market.stale),
             "strategies": [
                 {

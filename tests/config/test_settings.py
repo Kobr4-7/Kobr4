@@ -23,7 +23,9 @@ def base(**kw: Any) -> dict[str, Any]:
     return cfg
 
 
-@pytest.mark.parametrize("name", ["paper.yaml", "backtest.yaml", "backtest-or.yaml"])
+@pytest.mark.parametrize(
+    "name", ["paper.yaml", "backtest.yaml", "backtest-or.yaml", "backtest-or-intraday.yaml"]
+)
 def test_shipped_configs_are_valid(name: str) -> None:
     settings = load_settings(ROOT / "config" / name)
     assert settings.strategies

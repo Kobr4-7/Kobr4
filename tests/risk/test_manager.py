@@ -161,6 +161,31 @@ async def test_daily_loss_halts_until_next_day(t0: datetime) -> None:
     assert isinstance(st.risk.evaluate(intent(t0)), Order)
 
 
+async def test_weekly_loss_halts_until_monday(t0: datetime) -> None:
+    # t0 = lundi 28/09/2026 8 h UTC
+    risk = RiskSettings(
+        max_daily_loss_pct=Decimal(10), max_weekly_loss_pct=Decimal(4), max_drawdown_pct=Decimal(20)
+    )
+    st = make_stack(t0, risk)
+    st.quote("EUR/USD", "1.08")
+    await st.portfolio.mark(t0)
+    st.portfolio.balance = Decimal(9800)  # −2 % lundi
+    st.clock.advance(timedelta(days=1))
+    await st.portfolio.mark(st.clock.now())
+    st.portfolio.balance = Decimal(9550)  # −4,5 % sur la semaine, mardi (−2,55 % sur le jour)
+    st.clock.advance(timedelta(hours=2))
+    await st.portfolio.mark(st.clock.now())
+    assert [e.rule for e in st.of(RiskLimitReached)] == ["max_weekly_loss"]
+    assert st.portfolio.weekly_pnl_pct() == Decimal("-4.5")
+    st.clock.advance(timedelta(days=2))  # jeudi : toujours en pause
+    await st.portfolio.mark(st.clock.now())
+    assert rejected(st.risk.evaluate(intent(t0))) == "max_weekly_loss"
+    st.clock.advance(timedelta(days=4))  # lundi suivant : nouvelle semaine
+    await st.portfolio.mark(st.clock.now())
+    assert isinstance(st.risk.evaluate(intent(t0)), Order)
+    assert st.portfolio.weekly_pnl_pct() == Decimal(0)
+
+
 async def test_drawdown_triggers_kill_switch(t0: datetime) -> None:
     st = make_stack(t0, RiskSettings(max_daily_loss_pct=Decimal(10), max_drawdown_pct=Decimal(10)))
     st.quote("EUR/USD", "1.08")
@@ -195,6 +220,8 @@ async def test_manual_kill_switch_closes_everything(t0: datetime) -> None:
     [
         ({"risk_per_trade_pct": 4, "max_daily_loss_pct": 3}, "perte journalière"),
         ({"max_daily_loss_pct": 12, "max_drawdown_pct": 10}, "drawdown"),
+        ({"risk_per_trade_pct": 2, "max_weekly_loss_pct": 1.5}, "hebdomadaire"),
+        ({"max_weekly_loss_pct": 15, "max_drawdown_pct": 10}, "hebdomadaire"),
     ],
 )
 def test_settings_consistency(kw: dict[str, int], match: str) -> None:

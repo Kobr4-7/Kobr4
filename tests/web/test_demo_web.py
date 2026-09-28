@@ -50,7 +50,9 @@ async def env(tmp_path: Path) -> AsyncIterator[DemoEnv]:
     fake = FakeFinnhub()
     key = generate_master_key()
     config = ServerConfig(
-        database_url="sqlite+aiosqlite:///:memory:",
+        # Base dans un fichier : en mémoire, toutes les sessions partagent une seule
+        # connexion et le rollback de l'une peut effacer l'écriture en cours d'une autre.
+        database_url=f"sqlite+aiosqlite:///{tmp_path / 'kobr4.db'}",
         master_key=key,
         data_dir=tmp_path,
         start_bots=False,
