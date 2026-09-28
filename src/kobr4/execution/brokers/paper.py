@@ -3,6 +3,9 @@
 Les ordres sont exécutés par le courtier simulé du backtest (`SimulatedBroker`), mais
 sur les cotations en direct de Finnhub (flux WebSocket gratuit, prix OANDA) au lieu
 de bougies historiques :
+- une seule connexion Finnhub par clé, partagée par tous les bots du serveur (Finnhub
+  n'accepte qu'une connexion à la fois par clé : deux bots se déconnecteraient l'un
+  l'autre et les cotations s'arrêteraient) ;
 - chaque cotation met à jour les prix, puis déclenche les stops et objectifs touchés
   (stop exécuté au prix du moment, donc au-delà du stop en cas de décalage ; objectif
   exécuté à son niveau) ;
@@ -73,6 +76,103 @@ def make_tick(symbol: str, mid: Decimal, ts: datetime) -> Tick:
     spread = inst.from_pips(typical_spread_pips(symbol))
     bid = inst.round_price(mid - spread / 2)
     return Tick(symbol=symbol, bid=bid, ask=bid + spread, ts=ts)
+
+
+END = object()
+"""Fin normale du flux (connexion fermée par Finnhub)."""
+
+type Quote = tuple[str, Decimal, datetime]
+
+
+class FinnhubFeed:
+    """Connexion WebSocket Finnhub partagée entre tous les abonnés d'une même clé.
+
+    Chaque abonné reçoit les cotations de ses paires ; la connexion s'ouvre avec le
+    premier abonné et se ferme avec le dernier. Les paires d'un nouvel abonné sont
+    ajoutées à la connexion déjà ouverte."""
+
+    def __init__(self, url: str, connect_ws: Connector) -> None:
+        self.url = url
+        self.connect_ws = connect_ws
+        self.subscribers: dict[int, tuple[set[str], asyncio.Queue[Any]]] = {}
+        self.task: asyncio.Task[None] | None = None
+        self.ws: WebSocket | None = None
+        self.subscribed: set[str] = set()
+        self._next = 0
+
+    async def quotes(self, symbols: list[str]) -> AsyncIterator[Quote]:
+        key = self._next
+        self._next += 1
+        queue: asyncio.Queue[Any] = asyncio.Queue()
+        self.subscribers[key] = (set(symbols), queue)
+        try:
+            if self.task is None or self.task.done():
+                self.task = asyncio.create_task(self._run())
+            elif self.ws is not None:
+                await self._sync(self.ws)
+            while True:
+                item = await queue.get()
+                if item is END:
+                    return
+                if isinstance(item, Exception):
+                    raise item
+                yield item
+        finally:
+            del self.subscribers[key]
+            if not self.subscribers and self.task is not None:
+                self.task.cancel()
+                self.task = None
+
+    async def _sync(self, ws: WebSocket) -> None:
+        wanted = set().union(*(s for s, _ in self.subscribers.values()))
+        for sym in sorted(wanted - self.subscribed):
+            self.subscribed.add(sym)
+            await ws.send(json.dumps({"type": "subscribe", "symbol": to_finnhub(sym)}))
+
+    def _broadcast(self, item: Any, symbol: str | None = None) -> None:
+        for symbols, queue in self.subscribers.values():
+            if symbol is None or symbol in symbols:
+                queue.put_nowait(item)
+
+    async def _run(self) -> None:
+        self.subscribed = set()
+        try:
+            async with self.connect_ws(self.url) as ws:
+                self.ws = ws
+                await self._sync(ws)
+                async for raw in ws:
+                    msg: dict[str, Any] = json.loads(raw)
+                    kind = msg.get("type")
+                    if kind == "error":
+                        raise BrokerError(f"Finnhub : {msg.get('msg', 'erreur inconnue')}")
+                    if kind != "trade":
+                        continue  # ping
+                    for t in msg.get("data") or []:
+                        if t.get("p") is None:
+                            continue
+                        symbol = from_finnhub(str(t.get("s", "")))
+                        ts = datetime.fromtimestamp(int(t.get("t", 0)) / 1000, UTC)
+                        self._broadcast((symbol, Decimal(str(t["p"])), ts), symbol)
+            self._broadcast(END)
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            self._broadcast(e)
+        finally:
+            self.ws = None
+
+
+_feeds: dict[tuple[str, Connector], FinnhubFeed] = {}
+
+
+def finnhub_feed(api_key: str, connect_ws: Connector) -> FinnhubFeed:
+    """La connexion partagée de cette clé (créée au premier appel)."""
+    feed = _feeds.get((api_key, connect_ws))
+    if feed is None:
+        feed = _feeds[(api_key, connect_ws)] = FinnhubFeed(
+            f"{FINNHUB_WS}?token={api_key}", connect_ws
+        )
+    return feed
 
 
 class PaperBroker(SimulatedBroker):
@@ -158,26 +258,11 @@ class PaperBroker(SimulatedBroker):
     # Prix en direct
 
     async def stream_prices(self, symbols: list[str]) -> AsyncIterator[Tick]:
-        wanted = set(symbols)
-        async with self.connect_ws(f"{FINNHUB_WS}?token={self.api_key}") as ws:
-            for s in symbols:
-                await ws.send(json.dumps({"type": "subscribe", "symbol": to_finnhub(s)}))
-            async for raw in ws:
-                msg: dict[str, Any] = json.loads(raw)
-                kind = msg.get("type")
-                if kind == "error":
-                    raise BrokerError(f"Finnhub : {msg.get('msg', 'erreur inconnue')}")
-                if kind != "trade":
-                    continue  # ping
-                for t in msg.get("data") or []:
-                    symbol = from_finnhub(str(t.get("s", "")))
-                    if symbol not in wanted or t.get("p") is None:
-                        continue
-                    ts = datetime.fromtimestamp(int(t.get("t", 0)) / 1000, UTC)
-                    tick = make_tick(symbol, Decimal(str(t["p"])), ts)
-                    self.prices.update(tick)
-                    await self._check_protections(tick)
-                    yield tick
+        async for symbol, mid, ts in finnhub_feed(self.api_key, self.connect_ws).quotes(symbols):
+            tick = make_tick(symbol, mid, ts)
+            self.prices.update(tick)
+            await self._check_protections(tick)
+            yield tick
 
     async def _check_protections(self, tick: Tick) -> None:
         for pos in [p for p in self._positions.values() if p.symbol == tick.symbol]:

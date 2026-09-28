@@ -191,3 +191,29 @@ async def test_history_downloads_missing_days(tmp_path: Path) -> None:
     n = len(calls)
     await broker.history("EUR/USD", Timeframe.H1, 30)
     assert len(calls) == n  # jours déjà stockés : rien à retélécharger
+
+
+async def test_bots_share_one_finnhub_connection(tmp_path: Path) -> None:
+    """Finnhub n'accepte qu'une connexion par clé : deux bots doivent la partager."""
+    fake = FakeFinnhub()
+    a, b = (
+        PaperBroker("cle-commune", tmp_path / f"{n}.json", connect_ws=fake.connect)
+        for n in ("a", "b")
+    )
+    got: dict[str, list[str]] = {"a": [], "b": []}
+
+    async def read(name: str, broker: PaperBroker, symbols: list[str]) -> None:
+        async for t in broker.stream_prices(symbols):
+            got[name].append(t.symbol)
+
+    ta = asyncio.create_task(read("a", a, ["XAU/USD"]))
+    await asyncio.sleep(0.01)
+    tb = asyncio.create_task(read("b", b, ["XAU/USD", "EUR/USD"]))
+    await asyncio.sleep(0.01)
+    fake.trade("XAU/USD", "2650.5")
+    fake.trade("EUR/USD", "1.08")
+    fake.queue.put_nowait(None)
+    await asyncio.gather(ta, tb)
+    assert len(fake.urls) == 1
+    assert [m["symbol"] for m in fake.sent] == ["OANDA:XAU_USD", "OANDA:EUR_USD"]
+    assert got == {"a": ["XAU/USD"], "b": ["XAU/USD", "EUR/USD"]}
