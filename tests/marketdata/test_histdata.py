@@ -15,7 +15,7 @@ def test_read_histdata(tmp_path: Path) -> None:
     row = df.row(0, named=True)
     assert row["open_time"] == datetime(2024, 1, 2, 22, 0, tzinfo=UTC)  # 17h EST = 22h UTC
     assert (row["open"], row["high"], row["low"], row["close"]) == (110427, 110429, 110425, 110429)
-    assert row["spread"] is None
+    assert row["spread"] == 6  # spread typique d'EUR/USD : 0,6 pip
     assert df.height == 2
 
 

@@ -3,6 +3,7 @@
 import argparse
 import logging
 from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 
 import polars as pl
@@ -47,6 +48,12 @@ def add_parser(sub: "argparse._SubParsersAction[argparse.ArgumentParser]") -> No
     imp = cmds.add_parser("import-histdata", help="importer des fichiers CSV M1 de HistData")
     imp.add_argument("files", type=Path, nargs="+")
     imp.add_argument("--symbol", type=_symbols, required=True)
+    imp.add_argument(
+        "--spread-pips",
+        type=Decimal,
+        default=None,
+        help="spread appliqué (défaut : spread typique de l'instrument)",
+    )
 
     syn = cmds.add_parser(
         "synth", help="générer un historique synthétique (tests uniquement, pas le marché réel)"
@@ -117,7 +124,7 @@ def _import_histdata(store: ParquetBarStore, args: argparse.Namespace) -> int:
     (symbol,) = args.symbol
     total = 0
     for f in args.files:
-        df = read_histdata(f, symbol)
+        df = read_histdata(f, symbol, args.spread_pips)
         total += store.write_m1(symbol, df)
         log.info("%s : %d bougies importées depuis %s", symbol, df.height, f.name)
     log.info("%s : %d bougies au total", symbol, total)

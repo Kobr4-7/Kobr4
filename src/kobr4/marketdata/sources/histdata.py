@@ -7,16 +7,24 @@ ne fournit pas de spread.
 Les fichiers se téléchargent à la main sur https://www.histdata.com (formulaire).
 """
 
+from decimal import Decimal
 from pathlib import Path
 
 import polars as pl
 
-from kobr4.core.instruments import get_instrument
+from kobr4.core.instruments import get_instrument, typical_spread_pips
 from kobr4.marketdata import frames
 
 
-def read_histdata(path: str | Path, symbol: str) -> pl.DataFrame:
-    scale = 10 ** get_instrument(symbol).price_precision
+def read_histdata(
+    path: str | Path, symbol: str, spread_pips: Decimal | None = None
+) -> pl.DataFrame:
+    """Bougies M1 d'un fichier HistData. HistData ne donne pas le spread : on applique
+    `spread_pips` (par défaut, le spread typique de l'instrument) pour que les backtests
+    comptent le coût d'entrée et de sortie."""
+    inst = get_instrument(symbol)
+    scale = 10**inst.price_precision
+    spread = inst.from_pips(spread_pips if spread_pips is not None else typical_spread_pips(symbol))
     raw = pl.read_csv(
         path,
         separator=";",
@@ -39,7 +47,7 @@ def read_histdata(path: str | Path, symbol: str) -> pl.DataFrame:
         px("high").alias("high"),
         px("low").alias("low"),
         px("close").alias("close"),
-        pl.lit(None, pl.Int64).alias("spread"),
+        pl.lit(int((spread * scale).to_integral_value()), pl.Int64).alias("spread"),
         pl.col("volume").cast(pl.Float64),
     )
     return frames.conform(df)

@@ -1,9 +1,12 @@
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
 
 from kobr4.app import main
+from kobr4.core.types import Timeframe
 from kobr4.marketdata.sources import dukascopy
+from kobr4.marketdata.store import ParquetBarStore
 from tests.marketdata.helpers import bi5
 
 
@@ -98,4 +101,14 @@ def test_import_histdata(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> 
         main(["data", "--store", str(store), "import-histdata", str(f), "--symbol", "EUR/USD"]) == 0
     )
     assert main(["data", "--store", str(store), "info"]) == 0
-    assert "1 sans spread" in capsys.readouterr().out
+    assert "0 sans spread" in capsys.readouterr().out  # spread typique appliqué
+
+
+def test_import_histdata_custom_spread(tmp_path: Path) -> None:
+    f = tmp_path / "xau.csv"
+    f.write_text("20240102 170000;2060.100;2060.500;2059.900;2060.300;0\n", encoding="utf-8")
+    store = tmp_path / "store"
+    args = ["data", "--store", str(store), "import-histdata", str(f), "--symbol", "XAU/USD"]
+    assert main([*args, "--spread-pips", "0.5"]) == 0
+    (bar,) = ParquetBarStore(store).bars("XAU/USD", Timeframe.M1)
+    assert bar.spread == Decimal("0.500")

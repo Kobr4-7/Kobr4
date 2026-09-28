@@ -88,6 +88,26 @@ INSTRUMENTS: dict[str, Instrument] = {
 }
 
 
+TYPICAL_SPREAD_PIPS: dict[str, Decimal] = {
+    "EUR/USD": Decimal("0.6"),
+    "GBP/USD": Decimal("0.9"),
+    "USD/JPY": Decimal("0.7"),
+    "USD/CHF": Decimal("1.0"),
+    "AUD/USD": Decimal("0.8"),
+    "USD/CAD": Decimal("1.0"),
+    "NZD/USD": Decimal("1.2"),
+    "EUR/GBP": Decimal("0.9"),
+    "EUR/JPY": Decimal("1.2"),
+    "GBP/JPY": Decimal("1.8"),
+    "XAU/USD": Decimal("0.3"),  # 1 pip = 1 $ pour l'or
+}
+"""Spread typique d'un compte standard, quand la source n'en fournit pas."""
+
+
+def typical_spread_pips(symbol: str) -> Decimal:
+    return TYPICAL_SPREAD_PIPS.get(symbol, Decimal("1.2"))
+
+
 def get_instrument(symbol: str) -> Instrument:
     try:
         return INSTRUMENTS[symbol]

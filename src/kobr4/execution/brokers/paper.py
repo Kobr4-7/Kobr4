@@ -28,7 +28,7 @@ from typing import Any, Protocol
 import polars as pl
 
 from kobr4.core.clock import Clock, LiveClock
-from kobr4.core.instruments import get_instrument
+from kobr4.core.instruments import get_instrument, typical_spread_pips
 from kobr4.core.models import Bar, ExitReason, Position, Tick
 from kobr4.core.orders import Order, OrderStatus
 from kobr4.core.prices import MissingPriceError, PriceBook
@@ -42,17 +42,6 @@ log = logging.getLogger(__name__)
 
 FINNHUB_WS = "wss://ws.finnhub.io"
 FINNHUB_API = "https://finnhub.io/api/v1"
-SPREAD_PIPS = {
-    "EUR/USD": Decimal("0.6"),
-    "GBP/USD": Decimal("0.9"),
-    "USD/JPY": Decimal("0.7"),
-    "USD/CHF": Decimal("1.0"),
-    "AUD/USD": Decimal("0.8"),
-    "USD/CAD": Decimal("1.0"),
-    "EUR/GBP": Decimal("0.9"),
-    "XAU/USD": Decimal("0.3"),  # 1 pip = 1 $ pour l'or
-}
-DEFAULT_SPREAD_PIPS = Decimal("1.2")
 KEEP_ORDERS = 200
 
 
@@ -81,7 +70,7 @@ def from_finnhub(code: str) -> str:
 
 def make_tick(symbol: str, mid: Decimal, ts: datetime) -> Tick:
     inst = get_instrument(symbol)
-    spread = inst.from_pips(SPREAD_PIPS.get(symbol, DEFAULT_SPREAD_PIPS))
+    spread = inst.from_pips(typical_spread_pips(symbol))
     bid = inst.round_price(mid - spread / 2)
     return Tick(symbol=symbol, bid=bid, ask=bid + spread, ts=ts)
 
