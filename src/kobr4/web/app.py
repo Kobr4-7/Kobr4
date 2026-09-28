@@ -16,7 +16,7 @@ from kobr4.security.crypto import SecretBox
 from kobr4.web.config import ServerConfig
 from kobr4.web.deps import AppState
 from kobr4.web.jobs import JobRunner
-from kobr4.web.routes import account, auth, bots, live, research
+from kobr4.web.routes import account, admin, auth, bots, live, research
 from kobr4.web.scheduler import LabScheduler
 from kobr4.web.security import RateLimiter
 from kobr4.web.supervisor import BotSupervisor, default_calendar
@@ -97,7 +97,7 @@ def create_app(
             response.headers.setdefault("Cache-Control", "no-store")
         return response
 
-    for r in (auth.router, account.router, bots.router, research.router, live.router):
+    for r in (auth.router, account.router, admin.router, bots.router, research.router, live.router):
         app.include_router(r)
 
     static = config.static_dir

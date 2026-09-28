@@ -526,3 +526,11 @@ td.r, th.r { text-align: right; }
 .chart-legend .lg-sl, .chart-legend .lg-tp { width: 14px; height: 0; border-radius: 0; border-top: 2px dashed var(--down); }
 .chart-legend .lg-tp { border-top-color: var(--up); }
 .chart-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; padding: 24px; }
+
+/* Mise à jour du site */
+.changes { list-style: none; padding: 0; display: grid; gap: 6px; }
+.changes li { padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); font-size: 13px; }
+.update-log {
+  margin: 0; padding: 12px 14px; max-height: 240px; overflow: auto; border-radius: 10px; font: 12px/1.5 var(--mono);
+  background: var(--surface-2); border: 1px solid var(--line); color: var(--ink-2); white-space: pre-wrap;
+}

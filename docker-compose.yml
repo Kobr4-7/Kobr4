@@ -8,9 +8,12 @@ services:
     env_file: deploy/.env
     environment:
       KOBR4_DATABASE_URL: postgresql+asyncpg://kobr4:${POSTGRES_PASSWORD}@db:5432/kobr4
+      KOBR4_CONTROL_DIR: /control
     volumes:
       - market-data:/data
       - lab:/lab
+      # Échange avec deploy/auto-update.sh (bouton « Mettre à jour » du site).
+      - ./deploy/control:/control
     depends_on:
       db:
         condition: service_healthy

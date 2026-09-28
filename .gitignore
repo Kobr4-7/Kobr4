@@ -21,3 +21,4 @@ deploy/.env
 deploy/secrets/
 /backups/
 !deploy/.env.example
+deploy/control/

@@ -73,15 +73,15 @@ ssh -L 3000:127.0.0.1:3000 kobr4@IP_DU_SERVEUR   # puis http://localhost:3000 (G
 
 Grafana n'est accessible que par tunnel SSH. Ajoute la source de données Prometheus `http://prometheus:9090`.
 
-## Mise à jour automatique
+## Mise à jour automatique et depuis le site
 
-Le script `deploy/auto-update.sh` vérifie s'il y a de nouveaux commits sur la branche et, si oui, les installe et reconstruit l'application. Pour le lancer toutes les 5 minutes (en tant que `kobr4`) :
+Le script `deploy/auto-update.sh` installe les nouveaux commits de la branche (toutes les 5 minutes) et traite les demandes du bouton « Mettre à jour » des réglages du site (dans la minute). Pour le lancer chaque minute (en tant que `kobr4`) :
 
 ```bash
-(crontab -l 2>/dev/null; echo "*/5 * * * * $HOME/Kobr4/deploy/auto-update.sh >> $HOME/auto-update.log 2>&1") | crontab -
+(crontab -l 2>/dev/null | grep -v auto-update.sh; echo "* * * * * $HOME/Kobr4/deploy/auto-update.sh >> $HOME/auto-update.log 2>&1") | crontab -
 ```
 
-Journal des mises à jour : `tail -f ~/auto-update.log`. Les bots sont arrêtés proprement puis relancés à chaque mise à jour.
+Mise à jour immédiate à la main : `~/Kobr4/deploy/auto-update.sh`. Journal : `tail -f ~/auto-update.log`. Les bots sont arrêtés proprement puis relancés à chaque mise à jour.
 
 ## Mettre à jour à la main
 

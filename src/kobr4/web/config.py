@@ -18,6 +18,8 @@ class ServerConfig:
     data_dir: Path = Path("data")
     lab_dir: Path = Path("lab")
     static_dir: Path | None = None
+    control_dir: Path | None = None
+    """Dossier partagé avec deploy/auto-update.sh (mise à jour depuis le site)."""
     invite_code: str | None = None
     """Si défini, exigé à l'inscription (sauf pour le tout premier compte)."""
     open_signup: bool = False
@@ -43,6 +45,9 @@ class ServerConfig:
             data_dir=Path(os.environ.get("KOBR4_DATA_DIR", "data")),
             lab_dir=Path(os.environ.get("KOBR4_LAB_DIR", "lab")),
             static_dir=Path(static) if static else None,
+            control_dir=Path(os.environ["KOBR4_CONTROL_DIR"])
+            if os.environ.get("KOBR4_CONTROL_DIR")
+            else None,
             invite_code=os.environ.get("KOBR4_INVITE_CODE") or None,
             open_signup=_bool("KOBR4_OPEN_SIGNUP", False),
             min_paper_days=int(os.environ.get("KOBR4_MIN_PAPER_DAYS", "28")),

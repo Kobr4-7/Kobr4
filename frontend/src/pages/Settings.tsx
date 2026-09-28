@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api, ApiError, type BrokerConn, type User } from "../api";
 import { DemoAccountForm } from "../components/demo";
+import { UpdatePanel } from "../components/update";
 import { Field, Notice, Panel } from "../components/ui";
 import { useAuth, useLoad, useToast } from "../context";
 import { dateTime } from "../format";
@@ -27,9 +28,11 @@ function useAction() {
 }
 
 export function Settings() {
+  const { user } = useAuth();
   return (
     <>
       <div className="page-head"><h1>Réglages</h1></div>
+      {user?.is_admin && <UpdatePanel />}
       <div className="grid2">
         <Profile />
         <Password />
