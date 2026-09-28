@@ -157,9 +157,11 @@ class LiveBot:
                 )
             self.portfolio.balance = account.balance
             self.portfolio.initial_balance = account.balance
-            self.portfolio.peak_equity = account.equity
             self.portfolio.replace_positions(await self.broker.positions())
             await self._warmup()
+            # Le plus haut de référence part de l'équité telle que le bot la calcule, pour
+            # ne pas afficher un drawdown fictif au démarrage.
+            self.portfolio.peak_equity = self.portfolio.equity()
             await self._refresh_calendar()
         except Exception as e:
             self.state = BotState.ERROR
