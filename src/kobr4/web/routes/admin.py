@@ -86,7 +86,8 @@ async def request_update(request: Request, st: State, s: DbSession, a: Current) 
         raise HTTPException(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
             "impossible de déposer la demande : sur le serveur, lancer "
-            "`chmod 777 ~/Kobr4/deploy/control`",
+            "`sudo chown -R kobr4:kobr4 ~/Kobr4/deploy/control && "
+            "chmod 777 ~/Kobr4/deploy/control`",
         ) from e
     await audit(s, request, a.user.id, "update_requested")
     await s.commit()

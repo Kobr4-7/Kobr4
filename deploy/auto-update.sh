@@ -9,6 +9,9 @@ set -u
 cd "$(dirname "$0")/.."
 ctl=deploy/control
 mkdir -p "$ctl" && chmod 777 "$ctl" 2>/dev/null || true
+if [ ! -w "$ctl" ]; then
+  echo "$(date '+%F %T') $ctl n'est pas modifiable : sudo chown -R $(id -un):$(id -gn) $ctl"
+fi
 exec 9>/tmp/kobr4-auto-update.lock
 flock -n 9 || exit 0  # une mise à jour est déjà en cours
 
