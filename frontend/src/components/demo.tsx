@@ -20,7 +20,6 @@ export function DemoAccountForm({ onDone }: { onDone: (c: BrokerConn) => void | 
         <li>Sur ton tableau de bord Finnhub, copie ta clé API (« API key »).</li>
         <li>Colle-la ici : elle est vérifiée puis enregistrée chiffrée.</li>
       </ol>
-      {error && <Notice tone="error">{error}</Notice>}
       <Field label="Clé API Finnhub" htmlFor="demo-key">
         <input id="demo-key" type="password" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)} />
       </Field>
@@ -53,9 +52,11 @@ export function DemoAccountForm({ onDone }: { onDone: (c: BrokerConn) => void | 
             }
           }}
         >
-          Créer le compte démo
+          {busy ? "Vérification de la clé…" : "Créer le compte démo"}
         </button>
       </div>
+      {key.trim().length > 0 && key.trim().length < 10 && <Notice tone="warn">La clé semble incomplète : copie-la en entier depuis Finnhub.</Notice>}
+      {error && <Notice tone="error">{error}</Notice>}
     </>
   );
 }
