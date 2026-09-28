@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Any
 
 from kobr4.backtest.engine import load_bars, run_backtest
-from kobr4.backtest.metrics import compute_metrics
+from kobr4.backtest.metrics import by_regime, compute_metrics
 from kobr4.config.settings import Settings
 from kobr4.lab.optimizer import LabSettings, Optimizer
 from kobr4.marketdata.sources.synthetic import MARKER
@@ -55,6 +55,7 @@ def backtest_job(
             for t in result.trades[-300:]
         ],
         "rejections": result.rejections,
+        "by_regime": by_regime(result.trades, result.trade_context),
         "start": result.start.isoformat() if result.start else None,
         "end": result.end.isoformat() if result.end else None,
         "initial_balance": float(result.initial_balance),

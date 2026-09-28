@@ -65,4 +65,12 @@ export const RULE_LABEL: Record<string, string> = {
   size_too_small: "Taille trop petite",
   currency_exposure: "Exposition par devise",
   margin: "Marge insuffisante",
+  ml_filter: "Filtre ML",
+};
+
+export const REGIME_LABEL: Record<string, string> = {
+  trend: "Tendance",
+  range: "Range",
+  volatile: "Forte volatilité",
+  unknown: "Indéterminé",
 };

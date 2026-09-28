@@ -2,7 +2,9 @@
 
 Bot de trading forex automatisé. Voir [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) pour l'architecture et la feuille de route, et [maquette/](maquette/) pour la maquette du tableau de bord.
 
-**État : moteur complet (backtest, laboratoire, bot en direct sur OANDA).** Le bot ne passe encore aucun ordre réel.
+**État : toutes les phases sont codées et testées.** Reste à brancher les vraies données et un compte démo OANDA, puis à mettre le site en ligne sur un serveur ([deploy/README.md](deploy/README.md)).
+
+Le site ([frontend/](frontend/)) est le point d'entrée : inscription, double authentification, connexion OANDA, bots, tableau de bord en direct, backtests, laboratoire. La ligne de commande `kobr4` donne accès aux mêmes briques sans le site.
 
 ## Installation
 
@@ -10,6 +12,14 @@ Prérequis : Python 3.12 et [uv](https://docs.astral.sh/uv/).
 
 ```bash
 uv sync
+```
+
+## Plateforme web en local
+
+```bash
+export KOBR4_MASTER_KEY=$(uv run kobr4 server gen-key)   # à conserver
+uv run kobr4 server run                  # API sur http://127.0.0.1:8000
+cd frontend && npm install && npm run dev   # site sur http://localhost:5173
 ```
 
 ## Commandes
@@ -27,6 +37,7 @@ uv run kobr4 lab optimize --config config/backtest.yaml --strategy ema-cross-h1 
 uv run kobr4 lab list
 uv run kobr4 lab approve <id>              # puis :
 uv run kobr4 lab apply <id> --config config/paper.yaml   # version +1, sauvegarde de l'ancienne
+uv run kobr4 lab train-filter --config config/backtest.yaml --strategy ema-cross-h1 --start 2019-01-01 --end 2025-12-31
 
 # Sans données réelles : historique synthétique, pour tester la chaîne uniquement
 uv run kobr4 data --store data-synth synth --symbols EUR/USD,GBP/USD,USD/JPY --start 2022-01-01 --end 2024-12-31
@@ -85,5 +96,7 @@ src/kobr4/
 ├── live/        # bot en direct : flux de prix, journal, métriques, alertes
 ├── db/          # schéma de la base (plateforme et journal)
 ├── security/    # chiffrement des secrets
+├── intel/       # régimes de marché, répartition du risque, filtre ML
+├── web/         # plateforme : API, comptes, superviseur des bots
 └── app.py    # point d'entrée
 ```

@@ -54,6 +54,20 @@ class BrokerSettings(_Strict):
         return SecretStr(value)
 
 
+class AllocationSettings(_Strict):
+    """Répartition du risque selon les résultats récents de chaque stratégie.
+
+    Le risque par trade est multiplié par un coefficient borné, calculé sur les derniers
+    trades de la stratégie : profit factor 1 → ×1, 2 → ×1,5, 0 → ×0,5.
+    """
+
+    enabled: bool = False
+    lookback_trades: int = Field(default=30, ge=5, le=500)
+    min_trades: int = Field(default=10, ge=1)
+    min_multiplier: Decimal = Field(default=Decimal("0.5"), gt=0, le=1)
+    max_multiplier: Decimal = Field(default=Decimal("1.5"), ge=1, le=3)
+
+
 class RiskSettings(_Strict):
     """Limites du gestionnaire de risque (docs/ARCHITECTURE.md §4.4)."""
 
@@ -66,6 +80,7 @@ class RiskSettings(_Strict):
     max_spread_multiplier: Decimal = Field(default=Decimal("2"), ge=1)
     news_blackout_minutes: int = Field(default=30, ge=0)
     leverage: Decimal = Field(default=Decimal(30), gt=0, le=500)
+    allocation: AllocationSettings = AllocationSettings()
     min_units: int = Field(default=1_000, ge=1)
     """Taille minimale d'une position, et pas d'arrondi (1 000 unités = 0,01 lot)."""
 
@@ -97,6 +112,8 @@ class StrategySettings(_Strict):
     instruments: list[str] = Field(min_length=1)
     timeframe: Timeframe
     params: dict[str, Any] = Field(default_factory=dict)
+    ml_filter: str | None = None
+    """Dossier d'un modèle de filtre entraîné (`kobr4 lab train-filter`), facultatif."""
 
 
 class Settings(_Strict):

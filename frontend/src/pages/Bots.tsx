@@ -258,6 +258,23 @@ export function BotDetail() {
         />
       )}
 
+      <Panel title="Optimisation automatique">
+        <div className="panel-b">
+          <label className="row" style={{ fontSize: 13.5 }}>
+            <input
+              type="checkbox"
+              checked={bot.auto_optimize}
+              disabled={busy}
+              onChange={(e) => void run(() => api.patch(`/api/bots/${bot.id}`, { auto_optimize: e.target.checked }), e.target.checked ? "Optimisation hebdomadaire activée" : "Optimisation hebdomadaire désactivée")}
+            />
+            Chaque samedi, relancer le laboratoire sur les stratégies de ce bot et me proposer de meilleurs réglages
+          </label>
+          <p className="muted" style={{ fontSize: 12.5 }}>
+            Rien n'est appliqué sans ton accord dans le Labo. Dernière exécution : {dateTime(bot.last_auto_optimize_at)}.
+          </p>
+        </div>
+      </Panel>
+
       {bot.mode === "paper" && readiness && (
         <Panel title="Passer en argent réel">
           <div className="panel-b">

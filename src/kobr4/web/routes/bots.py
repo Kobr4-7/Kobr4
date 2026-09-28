@@ -32,6 +32,10 @@ def bot_out(b: BotRecord, live: LiveBot | None) -> dict[str, Any]:
         "config": b.config,
         "last_error": (live.error if live and live.error else None) or b.last_error,
         "live_confirmed_at": b.live_confirmed_at.isoformat() if b.live_confirmed_at else None,
+        "auto_optimize": b.auto_optimize,
+        "last_auto_optimize_at": b.last_auto_optimize_at.isoformat()
+        if b.last_auto_optimize_at
+        else None,
         "created_at": b.created_at.isoformat(),
         "updated_at": b.updated_at.isoformat(),
     }
@@ -112,6 +116,7 @@ class BotUpdate(BaseModel):
     instruments: list[str] | None = None
     risk: dict[str, Any] | None = None
     strategies: list[dict[str, Any]] | None = None
+    auto_optimize: bool | None = None
 
 
 @router.patch("/{bot_id}")
@@ -121,6 +126,9 @@ async def update_bot(
     b = await _own(s, a, bot_id)
     if body.name is not None:
         b.name = body.name
+    if body.auto_optimize is not None:
+        b.auto_optimize = body.auto_optimize
+        await audit(s, request, a.user.id, "auto_optimize", bot=bot_id, enabled=body.auto_optimize)
     if body.instruments is not None or body.risk is not None or body.strategies is not None:
         if st.supervisor.get(bot_id) is not None:
             raise HTTPException(

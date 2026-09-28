@@ -33,42 +33,41 @@ Document de référence de l'architecture du bot de trading forex. Toute décisi
 ```mermaid
 flowchart LR
     subgraph Courtier
-        BAPI[API courtier<br/>REST + flux de prix]
+        BAPI[API OANDA<br/>REST + flux]
     end
 
-    subgraph Bot["Moteur Kobr4 (processus Python)"]
-        MD[Données de marché]
-        BUS((Bus<br/>d'événements))
-        STRAT[Moteur de stratégies]
-        RISK[Gestionnaire<br/>de risque]
-        OMS[Exécution / OMS]
-        PF[Portefeuille]
+    subgraph Serveur["Serveur Kobr4 (un processus Python)"]
+        WEB[Site + API<br/>FastAPI, WebSocket]
+        SUP[Superviseur<br/>des bots]
+        subgraph Bot["Un bot par configuration d'utilisateur"]
+            MD[Données de marché]
+            BUS((Bus<br/>d'événements))
+            STRAT[Stratégies<br/>+ régimes]
+            RISK[Gestionnaire<br/>de risque]
+            OMS[Exécution / OMS]
+            PF[Portefeuille]
+        end
+        JOBS[Tâches de fond<br/>backtests, laboratoire]
     end
 
     subgraph Stockage
-        DB[(PostgreSQL<br/>+ TimescaleDB)]
-        REDIS[(Redis)]
+        DB[(PostgreSQL)]
+        PQ[(Historique<br/>Parquet)]
     end
 
-    API[API FastAPI<br/>REST + WebSocket]
-    UI[Tableau de bord]
-    MON[Prometheus + Grafana<br/>alertes Telegram]
+    UI[Navigateur / téléphone<br/>application installable]
+    MON[Prometheus, Grafana<br/>alertes Telegram]
 
-    BAPI -- cotations --> MD
-    MD --> BUS
-    BUS --> STRAT
-    STRAT -- intention d'ordre --> BUS
-    BUS --> RISK
-    RISK -- ordre validé --> OMS
-    OMS -- ordre --> BAPI
-    BAPI -- exécution --> OMS
-    OMS --> BUS
-    BUS --> PF
+    UI <--> WEB
+    WEB --> SUP --> Bot
+    WEB --> JOBS --> PQ
+    BAPI -- cotations --> MD --> BUS --> STRAT
+    STRAT -- intention --> BUS --> RISK -- ordre validé --> OMS
+    OMS <--> BAPI
+    OMS --> PF
     BUS --> DB
-    PF --> REDIS
-    REDIS --> API
-    API <--> UI
-    Bot -. métriques .-> MON
+    WEB --> DB
+    Serveur -. métriques .-> MON
 ```
 
 ## 4. Composants
@@ -150,7 +149,7 @@ class Broker(Protocol):
 Adaptateurs prévus : `SimulatedBroker` (backtest), `OandaBroker` (démo puis réel), `IBBroker` (plus tard).
 
 ### 4.6 Portefeuille (`portfolio`)
-Positions, P&L réalisé et flottant, équité, marge, drawdown, statistiques par stratégie. Publie un instantané toutes les secondes vers Redis pour le tableau de bord.
+Positions, P&L réalisé et flottant, équité, marge, drawdown. Valorisé toutes les 5 secondes en direct (à chaque bougie en backtest) ; le site lit l'état directement et le diffuse par WebSocket.
 
 ### 4.7 Backtest (`backtest`)
 - Rejoue l'historique à travers **les mêmes** stratégies, le même risque et l'OMS, avec `SimulatedClock` et `SimulatedBroker`.
@@ -160,17 +159,24 @@ Positions, P&L réalisé et flottant, équité, marge, drawdown, statistiques pa
 - Rapport : rendement, drawdown max, ratio de Sharpe, profit factor, taux de réussite, espérance par trade, courbe d'équité.
 - Walk-forward et tests hors échantillon pour limiter la sur-optimisation.
 
-### 4.8 API et tableau de bord (`api`, `dashboard`)
-- **FastAPI** : REST (configuration, historique, rapports de backtest) et WebSocket (cotations, positions, journal en direct).
-- Authentification obligatoire (compte unique + 2FA au début).
-- Actions sensibles (arrêt d'urgence, passage en réel, changement de paramètres) enregistrées dans le journal d'audit.
-- **Tableau de bord** : la maquette actuelle, portée en React + TypeScript.
+### 4.8 Plateforme web (`web`, `frontend`)
+Le site est le point d'entrée unique, utilisable sur ordinateur et téléphone, installable comme une application (PWA).
 
-### 4.9 Supervision (`monitoring`)
-- Métriques Prometheus : latence signal → ordre, âge de la dernière cotation, ordres refusés, écart de réconciliation, P&L, drawdown.
-- Grafana pour les graphiques.
-- Alertes Telegram : crash, perte de connexion, arrêt par le risque, écart de réconciliation, ordre refusé par le courtier.
-- Contrôle de vie externe (heartbeat) : si le bot ne répond plus, alerte depuis l'extérieur du serveur.
+- **Comptes** : inscription (le premier compte est administrateur ; ensuite sur invitation), mots de passe argon2, sessions en cookie HttpOnly dont seule l'empreinte est stockée, verrouillage après 5 échecs, limitation par IP.
+- **Double authentification TOTP** avec codes de secours à usage unique ; obligatoire avant de connecter un courtier et pour passer en réel.
+- **Parcours d'accueil** : profil → double authentification → connexion OANDA (jeton vérifié auprès d'OANDA, choix du compte) → alertes Telegram → premier bot en démo.
+- **Secrets** (jetons OANDA et Telegram) chiffrés en AES-256-GCM avec une clé maîtresse du serveur, liés à l'utilisateur.
+- **Bots** : chaque utilisateur a ses bots, isolés des autres. Le superviseur les démarre, les arrête, et relance après un redémarrage du serveur ceux qui tournaient.
+- **Tableau de bord temps réel** (WebSocket) : équité, P&L, limites de risque, graphique, positions, historique, journal, pause par stratégie, arrêt d'urgence.
+- **Backtests et laboratoire** lancés depuis le site, en tâches de fond qui ne ralentissent jamais les bots.
+- **Passage en réel** : mot de passe + code 2FA + phrase à recopier + 28 jours et 20 trades minimum en démo + compte OANDA réel distinct. Retour en démo toujours possible.
+- Protection CSRF (en-tête obligatoire), en-têtes de sécurité, journal d'audit des actions sensibles.
+
+### 4.9 Supervision (`live`)
+- Métriques Prometheus par bot (`/metrics`, protégé par jeton) : cotations, âge de la dernière cotation, intentions, refus du risque par règle, ordres, latence intention → ordre, équité, arrêt d'urgence, écarts de réconciliation.
+- Règles d'alerte Prometheus livrées (`deploy/alerts.yml`), Grafana en option.
+- Alertes Telegram par utilisateur : arrêt d'urgence, limite atteinte, coupure des cotations, écart avec le courtier, ordre refusé, et en option chaque trade. Anti-répétition.
+- Une boucle interne qui plante met le bot en erreur et bloque les entrées ; les positions restent protégées par leurs stops chez le courtier.
 
 ### 4.10 Laboratoire (`lab`)
 Le laboratoire cherche de meilleurs réglages et de meilleures combinaisons de stratégies, **hors ligne**. Il ne touche jamais au bot en réel : il produit des propositions, que l'on valide.
@@ -204,6 +210,16 @@ Règles :
 - Aucun changement n'arrive en réel sans validation humaine dans le tableau de bord, puis un passage par le compte démo.
 - Le laboratoire ne peut pas modifier les limites du gestionnaire de risque.
 - Pas d'apprentissage en continu en réel : un modèle qui change pendant qu'il trade est instable et impossible à auditer.
+
+### 4.11 Intelligence (`intel`)
+Tout est calculé de la même façon en backtest et en réel.
+
+| Capacité | Fonctionnement | Garde-fou |
+|---|---|---|
+| Régimes de marché | Chaque bougie est classée tendance (ADX ≥ 25), forte volatilité (ATR dans les 20 % les plus hauts sur 200 bougies) ou range. Les backtests donnent les résultats par régime. | Une stratégie peut être limitée à certains régimes (`regimes`) ; les fermetures ne sont jamais bloquées. |
+| Répartition du risque | Le risque par trade d'une stratégie est multiplié par 0,5 + 0,5 × son profit factor récent (30 derniers trades), borné entre ×0,5 et ×1,5. | Désactivée par défaut ; ×1 tant qu'il y a moins de 10 trades ; les limites globales restent fixes. |
+| Filtre ML | LightGBM apprend, sur les trades passés, dans quelles conditions les signaux échouent. Il peut seulement refuser un signal (règle de risque `ml_filter`). | Découpage chronologique 70/30, seuil choisi par validation croisée sur l'apprentissage seulement, retenu uniquement si l'AUC ≥ 0,55 et si le profit factor s'améliore sur la période de test. |
+| Optimisation hebdomadaire | Chaque samedi, le laboratoire réoptimise les stratégies des bots où c'est activé, et prévient sur Telegram. | Proposition soumise à validation, jamais appliquée automatiquement. |
 
 ## 5. Flux
 
@@ -268,25 +284,23 @@ L'état `Inconnu` est essentiel : après un délai dépassé, on ne renvoie jama
 
 ## 6. Données
 
-PostgreSQL avec l'extension TimescaleDB pour les séries temporelles.
+PostgreSQL 16 (SQLite pour le développement et les tests), schéma versionné par migrations Alembic.
 
-| Table | Contenu | Type |
-|---|---|---|
-| `instruments` | Paires, taille du pip, décimales, taille de lot | référence |
-| `ticks` | Cotations bid/ask reçues en direct | hypertable, compressée après 7 jours |
-| `events` | Journal de tous les événements (JSON), en ajout seul | hypertable |
-| `orders` | Ordres et état courant | transactionnel |
-| `fills` | Exécutions | transactionnel |
-| `positions` | Positions ouvertes et fermées | transactionnel |
-| `account_snapshots` | Équité, marge, drawdown | hypertable |
-| `backtest_runs` | Paramètres, résultats, rapport | analytique |
-| `audit_log` | Actions humaines (arrêt, config, passage en réel) | ajout seul |
+| Table | Contenu |
+|---|---|
+| `users`, `sessions` | Comptes, empreintes des sessions, double authentification (secret chiffré), codes de secours (empreintes) |
+| `broker_connections` | Comptes OANDA (démo ou réel), jeton chiffré |
+| `notification_settings` | Telegram (jeton chiffré), préférences d'alerte |
+| `bots` | Configuration (instruments, risque, stratégies versionnées), mode démo/réel, état souhaité et réel, optimisation automatique |
+| `bot_events` | Journal de chaque bot : intentions, décisions du risque, ordres, positions, arrêts d'urgence, coupures, écarts |
+| `trades` | Trades fermés, avec P&L en devise du compte, commission, financement |
+| `equity_points` | Équité et solde, une valeur par minute |
+| `backtest_runs`, `proposals` | Backtests et propositions du laboratoire lancés depuis le site |
+| `audit_log` | Actions humaines sensibles, en ajout seul |
 
 L'historique des bougies n'est pas dans PostgreSQL : il est stocké en fichiers Parquet (`data/<EURUSD>/M1/<année>.parquet`), avec les prix en entiers (prix × 10^précision), ce qui est exact et rapide à lire pour les backtests.
 
-Redis sert de cache d'état en direct (dernier prix, positions, équité) pour l'API.
-
-Sauvegardes : dump quotidien de la base vers un stockage externe chiffré, rétention 30 jours.
+Sauvegardes : export complet quotidien de la base (`pg_dump`), 30 jours gardés, à copier hors du serveur.
 
 ## 7. Technologies
 
@@ -297,21 +311,22 @@ Sauvegardes : dump quotidien de la base vers un stockage externe chiffré, réte
 | Qualité | `ruff` (lint + format), `mypy --strict`, `pytest`, `hypothesis` |
 | Modèles | `pydantic` v2 |
 | Calcul | `numpy`, `polars` (backtests) |
-| Laboratoire | `optuna` (optimisation), `lightgbm` (filtre ML, plus tard) |
-| Base | PostgreSQL 16 + TimescaleDB, `asyncpg`, migrations `alembic` |
-| Cache / état direct | Redis 7 |
-| API | FastAPI + Uvicorn |
-| Tableau de bord | React + TypeScript + Vite |
+| Laboratoire et ML | `optuna`, `lightgbm` |
+| Base | PostgreSQL 16, SQLAlchemy 2 (asynchrone), `asyncpg`, migrations `alembic` |
+| Courtier | OANDA v20 via `httpx` |
+| Serveur web | FastAPI + Uvicorn, derrière Caddy (HTTPS automatique) |
+| Sécurité | `argon2-cffi`, `pyotp`, `cryptography` (AES-GCM) |
+| Site | React 19 + TypeScript + Vite, `lightweight-charts`, PWA |
 | Supervision | Prometheus, Grafana, alertes Telegram |
-| Déploiement | Docker Compose sur VPS Linux à Londres (LD4) |
-| CI | GitHub Actions : lint, typage, tests, backtest de non-régression |
+| Déploiement | Docker Compose sur VPS Linux à Londres |
+| CI | GitHub Actions : lint, typage, tests (Python), typage et build (site) |
 
 ## 8. Montée en charge
 
 | Étape | Déclencheur | Changement |
 |---|---|---|
 | 1. Monolithe modulaire | Démarrage | Un processus, bus en mémoire |
-| 2. Processus séparés | Plus de ~10 stratégies ou besoin d'isoler un crash | Bus sur Redis Streams ; un processus pour données + OMS + risque, un par groupe de stratégies |
+| 2. Processus séparés | Beaucoup d'utilisateurs ou de bots, ou besoin d'isoler un crash | Bus et état en direct sur Redis ; le site dans un processus, les bots dans des processus de travail |
 | 3. Plusieurs courtiers / comptes | Diversification du risque courtier | Un OMS par compte, risque global au-dessus |
 | 4. Calcul intensif | Backtests trop lents | Parties critiques en Rust (PyO3), backtests parallélisés |
 
@@ -335,10 +350,11 @@ flowchart LR
 Le passage en réel est une action manuelle, enregistrée dans l'audit, qui exige une clé API distincte.
 
 ### Sécurité
-- Clés API du courtier dans les secrets de l'environnement (Docker secrets), jamais dans le dépôt.
-- Clés courtier sans droit de retrait quand le courtier le permet.
-- VPS : accès SSH par clé uniquement, pare-feu fermé sauf HTTPS, tableau de bord derrière authentification.
-- Comptes démo et réel séparés dans la configuration ; le mode réel se lance avec un fichier de configuration distinct.
+- Jetons courtier et Telegram saisis sur le site, chiffrés en base ; une seule clé maîtresse côté serveur, à sauvegarder hors du serveur.
+- Double authentification obligatoire avant tout accès au courtier et pour passer en réel.
+- Comptes démo et réel séparés ; un bot démarre toujours en démo.
+- Serveur : SSH par clé, pare-feu limité à SSH/HTTP/HTTPS, HTTPS obligatoire, métriques jamais exposées publiquement.
+- Procédures d'incident et liste de contrôle avant le réel : [EXPLOITATION.md](EXPLOITATION.md).
 
 ## 10. Décisions d'architecture
 
@@ -348,54 +364,52 @@ Le passage en réel est une action manuelle, enregistrée dans l'audit, qui exig
 | 2 | Moteur maison, léger | NautilusTrader | Contrôle total sur le risque et l'OMS, et pas d'adaptateur OANDA officiel. NautilusTrader reste une option si le moteur maison devient trop coûteux à maintenir. |
 | 3 | Monolithe modulaire | Microservices dès le départ | Moins de pièces à faire tomber en panne. Le bus abstrait permet de découper plus tard. |
 | 4 | OANDA comme premier courtier | MetaTrader 5 | API REST propre, compte démo gratuit, fonctionne sous Linux. À confirmer selon la disponibilité pour un compte en France. |
-| 5 | PostgreSQL + TimescaleDB pour le journal et les données en direct, Parquet pour l'historique des bougies | Tout dans TimescaleDB | Les backtests lisent des millions de bougies d'un coup : Parquet est plus rapide, sans serveur, et facile à copier. La base sert au journal, aux ordres et au suivi en direct. |
-| 8 | Périodes alignées sur l'heure UTC (D1 à 0h UTC) | Clôture de New York (17h heure de New York) | Simple et sans changement d'heure. À revoir si une stratégie journalière doit coller aux bougies du courtier. |
+| 5 | PostgreSQL pour la plateforme et le journal, Parquet pour l'historique des bougies | Tout dans une base de séries temporelles (TimescaleDB) | Les backtests lisent des millions de bougies d'un coup : Parquet est plus rapide, sans serveur, et facile à copier. La base sert au journal, aux ordres et au suivi en direct. |
 | 6 | Taille calculée par le risque | Taille décidée par la stratégie | Une seule règle de dimensionnement, appliquée partout. |
 | 7 | Optimisation hors ligne, validée par un humain | Apprentissage en continu en réel | Le forex est très bruité : un bot qui s'ajuste seul en réel sur-apprend le bruit récent. Hors ligne, chaque changement est testé, versionné et réversible. |
+| 8 | Périodes alignées sur l'heure UTC (D1 à 0h UTC) | Clôture de New York (17h heure de New York) | Simple et sans changement d'heure. À revoir si une stratégie journalière doit coller aux bougies du courtier. |
+| 9 | Plateforme web multi-utilisateurs, secrets saisis sur le site et chiffrés | Secrets en variables d'environnement, utilisateur unique | Le site est le point d'entrée partout (ordinateur, téléphone) ; chaque utilisateur configure son courtier lui-même. |
+| 10 | Site et bots dans le même processus, sans Redis | Redis entre les bots et l'API dès le départ | Moins de pièces pour un nombre modeste de bots ; l'API lit l'état des bots directement. Redis arrive avec l'étape 2 de la montée en charge. |
+| 11 | Application web installable (PWA) | Application mobile native | Un seul code pour ordinateur et téléphone, mises à jour instantanées, pas de boutique d'applications. |
 
 ## 11. Organisation du dépôt
 
 ```
 Kobr4/
 ├── src/kobr4/
-│   ├── core/            # modèles, événements, bus, horloge
-│   ├── marketdata/      # flux de prix, bougies, historique
-│   ├── strategies/      # stratégies + indicateurs
-│   ├── risk/            # règles de risque, dimensionnement, arrêt d'urgence
-│   ├── execution/       # OMS, réconciliation
-│   │   └── brokers/     # simulated.py, oanda.py, ib.py
-│   ├── portfolio/       # positions, P&L, statistiques
-│   ├── backtest/        # moteur de rejeu, rapports
-│   ├── lab/             # optimisation, walk-forward, régimes, allocation
-│   ├── storage/         # accès base, migrations
-│   ├── api/             # FastAPI
-│   ├── monitoring/      # métriques, alertes
-│   └── app.py           # point d'entrée, assemblage des modules
-├── dashboard/           # React + TypeScript
-├── config/              # paper.yaml, live.yaml, strategies/*.yaml
-├── tests/               # unitaires, intégration, backtests de référence
-├── deploy/              # docker-compose.yml, Dockerfile, Grafana
-├── maquette/            # maquette HTML actuelle
-└── docs/
+│   ├── core/            # modèles, ordres, événements, bus, horloges, prix et conversions
+│   ├── config/          # configuration validée
+│   ├── marketdata/      # historique (Dukascopy, HistData, synthétique), Parquet, bougies
+│   ├── strategies/      # indicateurs, stratégies, exécution des stratégies
+│   ├── risk/            # gestionnaire de risque, calendrier économique, spreads
+│   ├── execution/       # interface courtier, OMS, courtiers simulé et OANDA
+│   ├── portfolio/       # positions, solde, équité, drawdown
+│   ├── backtest/        # moteur de rejeu, statistiques, rapport HTML
+│   ├── lab/             # optimisation walk-forward, propositions
+│   ├── intel/           # régimes, répartition du risque, filtre ML
+│   ├── live/            # bot en direct, journal, métriques, alertes
+│   ├── db/              # schéma, migrations
+│   ├── security/        # chiffrement des secrets
+│   ├── web/             # API, comptes, superviseur, tâches de fond
+│   └── app.py           # ligne de commande
+├── frontend/            # site React + TypeScript
+├── config/              # configurations d'exemple
+├── deploy/              # Caddy, sauvegardes, Prometheus, guide de mise en ligne
+├── docs/                # architecture, exploitation
+├── maquette/            # maquette HTML d'origine
+└── tests/               # tests unitaires, d'intégration et de l'API
 ```
 
 ## 12. Feuille de route
 
-| Phase | Livrable | Résultat vérifiable |
+| Phase | Livrable | État |
 |---|---|---|
-| 0. Fondations | Dépôt, CI, modèles du domaine, bus, horloge, configuration | `pytest` et `mypy` passent en CI |
-| 1. Données | Adaptateur OANDA (lecture), stockage des cotations, bougies, téléchargement de l'historique | 3 ans de H1 sur 7 paires en base |
-| 2. Backtest | Courtier simulé, stratégie EMA, rapport | Rapport de backtest EMA reproductible |
-| 2b. Laboratoire | Optimisation Optuna, walk-forward, rapport de stabilité | Réglages EMA validés hors échantillon, rapport archivé |
-| 3. Risque + OMS | Toutes les règles du §4.4, machine à états, réconciliation | Tests couvrant chaque règle de refus |
-| 4. Paper trading | Déploiement VPS, supervision, alertes, OANDA démo | Bot en démo 24h/24 pendant 4 semaines |
-| 5. Tableau de bord | API + dashboard React connectés au bot | Maquette alimentée par les vraies données |
-| 6. Réel limité | Configuration réelle, audit, procédure d'arrêt | Critères du §9 remplis |
-| 7. Intelligence | Détection des régimes, allocation entre stratégies, filtre ML, propositions hebdomadaires dans le tableau de bord | Gain mesuré hors échantillon par rapport aux stratégies seules |
-
-**Avancement**
-- Phase 0 terminée : modèles du domaine, cycle de vie des ordres, bus d'événements, horloges, configuration validée, CI.
-- Phase 4 terminée (hors déploiement sur serveur, qui dépend de ton VPS) : adaptateur OANDA v20 (stop par distance à l'exécution, objectif exact, fermeture par identifiant client, flux des transactions sans doublon), moteur en direct (flux de prix avec reconnexion, bougies, détection des coupures, amorçage par l'historique du courtier, réconciliation, synchronisation du solde), journal PostgreSQL, métriques Prometheus, alertes Telegram, calendrier économique automatique, `kobr4 run`.
-- Phase 2b terminée : laboratoire (`kobr4 lab optimize | list | approve | reject | apply`), optimisation Optuna en parallèle, walk-forward, période réservée comparée aux réglages actuels, stabilité, Sharpe dégonflé, critères d'acceptation, propositions versionnées avec rapport HTML.
-- Phases 2 et 3 terminées : trois stratégies (croisement EMA, RSI, cassure), gestionnaire de risque complet, OMS avec réconciliation, courtier simulé, moteur de backtest et rapport HTML (`kobr4 backtest`).
-- Phase 1 en cours : historique M1 (Dukascopy, HistData), stockage Parquet, agrégation en H1/H4/D1, construction des bougies en direct, contrôle qualité. Reste : télécharger les 3 ans d'historique, puis l'adaptateur OANDA en lecture une fois le compte démo ouvert.
+| 0. Fondations | Dépôt, CI, modèles du domaine, bus, horloge, configuration | Terminée |
+| 1. Données | Historique M1, stockage Parquet, bougies, contrôle qualité | Code terminé ; téléchargement de l'historique réel à faire (réseau) |
+| 2. Backtest | Courtier simulé, stratégies, rapport | Terminée |
+| 2b. Laboratoire | Optuna, walk-forward, stabilité, Sharpe dégonflé, propositions | Terminée |
+| 3. Risque + OMS | Règles de risque, cycle de vie des ordres, réconciliation | Terminée |
+| 4. Bot en direct | Adaptateur OANDA, flux, journal, supervision, alertes | Code terminé ; à valider sur un vrai compte démo |
+| 5. Plateforme web | Comptes, 2FA, parcours d'accueil, tableau de bord, bots, backtests, labo | Terminée |
+| 6. Déploiement et réel | Docker, HTTPS, sauvegardes, procédures, garde-fous du passage en réel | Terminée ; mise en ligne sur ton serveur à faire |
+| 7. Intelligence | Régimes, répartition du risque, filtre ML, optimisation hebdomadaire | Terminée ; à juger sur données réelles |

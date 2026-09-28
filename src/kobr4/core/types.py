@@ -60,3 +60,12 @@ _TIMEFRAME_DURATIONS = {
     Timeframe.H4: timedelta(hours=4),
     Timeframe.D1: timedelta(days=1),
 }
+
+
+class Regime(StrEnum):
+    """Régime de marché (voir intel/features.py)."""
+
+    TREND = "trend"
+    RANGE = "range"
+    VOLATILE = "volatile"
+    UNKNOWN = "unknown"

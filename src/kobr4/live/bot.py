@@ -21,6 +21,8 @@ from kobr4.core.prices import PriceBook, conversion_symbols
 from kobr4.db.session import Database
 from kobr4.execution.broker import Broker
 from kobr4.execution.oms import OrderManager
+from kobr4.intel.features import FeatureTracker
+from kobr4.intel.ml import build_filters
 from kobr4.live.alerts import AlertRouter, Notifier
 from kobr4.live.journal import Journal
 from kobr4.live.market import MarketData
@@ -103,6 +105,7 @@ class LiveBot:
             self.bus, self.prices, self.clock, settings.base_currency, Decimal(0)
         )
         self.calendar = EconomicCalendar()
+        self.features = FeatureTracker()
         self.risk = RiskManager(
             settings.risk,
             self.bus,
@@ -111,9 +114,12 @@ class LiveBot:
             self.clock,
             self._order_id,
             self.calendar,
+            signal_filters=build_filters(self.strategies, settings.strategies, self.features),
         )
         self.oms = OrderManager(self.bus, broker, self.portfolio, self.clock)
-        self.runner = StrategyRunner(self.bus, self.clock, self.portfolio, self.strategies)
+        self.runner = StrategyRunner(
+            self.bus, self.clock, self.portfolio, self.strategies, self.features
+        )
 
         traded = sorted({s for st in self.strategies for s in st.instruments})
         self.symbols = traded + sorted(conversion_symbols(traded, settings.base_currency))
@@ -313,7 +319,14 @@ class LiveBot:
             "daily_loss_pct": str(round(self.portfolio.daily_loss_pct(equity), 2)),
             "stale": sorted(self.market.stale),
             "strategies": [
-                {"id": s.id, "kind": s.kind, "enabled": self.runner.enabled[s.id]}
+                {
+                    "id": s.id,
+                    "kind": s.kind,
+                    "enabled": self.runner.enabled[s.id],
+                    "regime": {
+                        sym: self.features.regime(sym, s.timeframe).value for sym in s.instruments
+                    },
+                }
                 for s in self.strategies
             ],
             "positions": [

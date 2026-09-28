@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from kobr4.backtest.engine import BacktestResult
-from kobr4.backtest.metrics import Metrics, compute_metrics
+from kobr4.backtest.metrics import Metrics, by_regime, compute_metrics
 
 _CSS = """
 :root{--bg:#EEF1F4;--surface:#fff;--line:#DCE2E8;--ink:#15202B;--muted:#5A6878;--accent:#0B6E8A;
@@ -56,6 +56,8 @@ def summary(result: BacktestResult, metrics: Metrics, meta: dict[str, Any]) -> d
         "bars_processed": result.bars_processed,
         "metrics": metrics.as_dict(),
         "risk_rejections": result.rejections,
+        "by_regime": by_regime(result.trades, result.trade_context),
+        "regime_skips": result.regime_skips,
     }
 
 
@@ -233,6 +235,22 @@ def render_html(result: BacktestResult, m: Metrics, meta: dict[str, Any]) -> str
         )
         or "<tr><td colspan='2' class='muted'>Aucun refus</td></tr>"
     )
+    labels = {
+        "trend": "Tendance",
+        "range": "Range",
+        "volatile": "Forte volatilité",
+        "unknown": "Indéterminé",
+    }
+    regime_html = (
+        "".join(
+            f"<tr><td>{labels[str(r['regime'])]}</td><td class='num r'>{r['trades']}</td>"
+            f"<td class='num r'>{_fmt(float(r['win_rate_pct']), 1, ' %')}</td>"
+            f"<td class='num r {'up' if float(r['pnl']) > 0 else 'down'}'>{_fmt(float(r['pnl']))}</td>"
+            f"<td class='num r'>{_fmt(float(r['profit_factor']))}</td></tr>"
+            for r in by_regime(result.trades, result.trade_context)
+        )
+        or "<tr><td colspan='5' class='muted'>Aucun trade</td></tr>"
+    )
     rows = []
     for t in result.trades[-300:][::-1]:
         cls = "up" if t.pnl > 0 else "down"
@@ -259,6 +277,9 @@ def render_html(result: BacktestResult, m: Metrics, meta: dict[str, Any]) -> str
 <section class="panel"><h2>Détails</h2><table>{detail_html}</table></section>
 <section class="panel"><h2>Refus du gestionnaire de risque</h2><table>{rej_html}</table></section>
 </div>
+<section class="panel"><h2>Résultats par régime de marché (à l'entrée)</h2><table>
+<thead><tr><th>Régime</th><th class="r">Trades</th><th class="r">Réussite</th><th class="r">P&amp;L</th><th class="r">Profit factor</th></tr></thead>
+<tbody>{regime_html}</tbody></table></section>
 <section class="panel"><h2>Derniers trades</h2><div class="tw"><table>
 <thead><tr><th>Fermé le</th><th>Paire</th><th>Sens</th><th class="r">Unités</th><th class="r">Entrée</th>
 <th class="r">Sortie</th><th>Motif</th><th class="r">P&amp;L</th></tr></thead>

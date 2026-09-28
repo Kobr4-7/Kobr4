@@ -165,6 +165,8 @@ async def test_strategy_pause_blocks_entries_only() -> None:
     )
     bot = LiveBot("b", "B", settings(), broker, clock=SimulatedClock(T0))
     bot.set_strategy_enabled("t", False)
-    assert bot.status()["strategies"] == [{"id": "t", "kind": "test_buy_once", "enabled": False}]
+    assert bot.status()["strategies"] == [
+        {"id": "t", "kind": "test_buy_once", "enabled": False, "regime": {"EUR/USD": "unknown"}}
+    ]
     with pytest.raises(KeyError):
         bot.set_strategy_enabled("nope", True)

@@ -30,6 +30,7 @@ from kobr4.core.instruments import get_instrument
 from kobr4.core.models import OrderIntent
 from kobr4.core.orders import Order
 from kobr4.core.prices import MissingPriceError, PriceBook
+from kobr4.intel.allocation import risk_multiplier
 from kobr4.portfolio import Portfolio
 from kobr4.risk.calendar import EconomicCalendar
 from kobr4.risk.spreads import SpreadMonitor
@@ -37,6 +38,7 @@ from kobr4.risk.spreads import SpreadMonitor
 log = logging.getLogger(__name__)
 
 IdFactory = Callable[[OrderIntent], str]
+SignalFilter = Callable[[OrderIntent], "Rejection | None"]
 
 
 @dataclass(frozen=True)
@@ -56,6 +58,7 @@ class RiskManager:
         id_factory: IdFactory,
         calendar: EconomicCalendar | None = None,
         spreads: SpreadMonitor | None = None,
+        signal_filters: list[SignalFilter] | None = None,
     ) -> None:
         self.settings = settings
         self.bus = bus
@@ -65,6 +68,7 @@ class RiskManager:
         self.id_factory = id_factory
         self.calendar = calendar or EconomicCalendar()
         self.spreads = spreads or SpreadMonitor()
+        self.signal_filters = signal_filters or []
         self.kill_switch: str | None = None
         self.halted_until_day: object | None = None
         self.stale: set[str] = set()
@@ -145,6 +149,11 @@ class RiskManager:
         if intent.symbol in self.stale:
             return Rejection("stale_data", "cotations interrompues sur cet instrument")
 
+        for flt in self.signal_filters:
+            refusal = flt(intent)
+            if refusal is not None:
+                return refusal
+
         news = self.calendar.blackout(intent.symbol, now, s.news_blackout_minutes)
         if news is not None:
             return Rejection(
@@ -184,7 +193,8 @@ class RiskManager:
             return Rejection("no_price", str(exc))
 
         equity = self.portfolio.equity()
-        risk_budget = equity * s.risk_per_trade_pct / 100
+        mult = risk_multiplier(s.allocation, intent.strategy_id, self.portfolio.trades)
+        risk_budget = equity * s.risk_per_trade_pct / 100 * mult
         raw_units = risk_budget / (intent.stop_loss_pips * pip_value)
         units = int((raw_units / s.min_units).to_integral_value(ROUND_FLOOR)) * s.min_units
         if units < s.min_units:

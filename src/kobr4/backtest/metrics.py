@@ -98,3 +98,30 @@ def compute_metrics(
         total_commission=float(sum((t.commission for t in trades), Decimal(0))),
         days=days,
     )
+
+
+def by_regime(
+    trades: Sequence[ClosedTrade], context: dict[str, dict[str, object]]
+) -> list[dict[str, float | int | str]]:
+    """Résultats par régime de marché au moment de l'entrée."""
+    groups: dict[str, list[float]] = {}
+    for t in trades:
+        regime = str(context.get(t.position_id, {}).get("regime", "unknown"))
+        groups.setdefault(regime, []).append(float(t.pnl))
+    out: list[dict[str, float | int | str]] = []
+    for regime in ("trend", "range", "volatile", "unknown"):
+        pnls = groups.get(regime)
+        if not pnls:
+            continue
+        gains = sum(p for p in pnls if p > 0)
+        losses = -sum(p for p in pnls if p <= 0)
+        out.append(
+            {
+                "regime": regime,
+                "trades": len(pnls),
+                "win_rate_pct": sum(p > 0 for p in pnls) / len(pnls) * 100,
+                "pnl": sum(pnls),
+                "profit_factor": gains / losses if losses > 0 else (10.0 if gains else 0.0),
+            }
+        )
+    return out

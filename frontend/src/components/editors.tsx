@@ -93,7 +93,7 @@ export function StrategyEditor({
             key={s.kind}
             type="button"
             aria-pressed={s.kind === value.kind}
-            onClick={() => onChange({ ...value, kind: s.kind, params: { ...s.defaults, sessions } })}
+            onClick={() => onChange({ ...value, kind: s.kind, params: { ...s.defaults, sessions, regimes: params.regimes ?? [] } })}
           >
             <span className="label">{s.family}</span>
             <span className="t">{s.name}</span>
@@ -134,7 +134,7 @@ export function StrategyEditor({
       {def && (
         <div className="row2">
           {Object.entries(def.params)
-            .filter(([k, s]) => k !== "sessions" && isNumeric(s))
+            .filter(([k, s]) => k !== "sessions" && k !== "regimes" && isNumeric(s))
             .map(([k, s]) => (
               <div className="field" key={k}>
                 <label htmlFor={`p-${value.id}-${k}`}>{PARAM_LABELS[k] ?? s.title ?? k}</label>
@@ -150,6 +150,28 @@ export function StrategyEditor({
             ))}
         </div>
       )}
+      <div className="field">
+        <span className="flabel">Régimes de marché où le bot peut ouvrir des positions (aucun : tous)</span>
+        <div className="chips">
+          {[
+            ["trend", "Tendance (ADX ≥ 25)"],
+            ["range", "Range"],
+            ["volatile", "Forte volatilité"],
+          ].map(([id, label]) => {
+            const regimes = (params.regimes as string[] | undefined) ?? [];
+            return (
+              <label className="chip" key={id}>
+                <input
+                  type="checkbox"
+                  checked={regimes.includes(id!)}
+                  onChange={(e) => setParam("regimes", e.target.checked ? [...regimes, id] : regimes.filter((x) => x !== id))}
+                />
+                {label}
+              </label>
+            );
+          })}
+        </div>
+      </div>
       <div className="field">
         <span className="flabel">Sessions où le bot peut ouvrir des positions (aucune : toujours)</span>
         <div className="chips">

@@ -15,7 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from kobr4.config.settings import StrategySettings
 from kobr4.core.models import Bar, CloseIntent, OrderIntent, Position
-from kobr4.core.types import Side
+from kobr4.core.types import Regime, Side
 from kobr4.strategies.sessions import Session, in_sessions
 
 Intent = OrderIntent | CloseIntent
@@ -33,6 +33,8 @@ class BaseParams(BaseModel):
     stop_loss_pips: Decimal = Field(default=Decimal(25), gt=0)
     take_profit_pips: Decimal | None = Field(default=Decimal(50), gt=0)
     sessions: list[Session] = Field(default_factory=list)
+    regimes: list[Regime] = Field(default_factory=list)
+    """Régimes de marché où la stratégie peut ouvrir des positions (vide : tous)."""
 
 
 @dataclass(frozen=True)

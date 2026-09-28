@@ -166,6 +166,9 @@ class BotRecord(Base):
     """Instruments, risque et stratégies (format de `Settings`)."""
     last_error: Mapped[str | None] = mapped_column(Text)
     live_confirmed_at: Mapped[datetime | None] = mapped_column()
+    auto_optimize: Mapped[bool] = mapped_column(Boolean, default=False)
+    """Optimisation automatique chaque week-end, avec proposition à valider."""
+    last_auto_optimize_at: Mapped[datetime | None] = mapped_column()
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
 

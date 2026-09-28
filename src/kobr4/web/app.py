@@ -17,6 +17,7 @@ from kobr4.web.config import ServerConfig
 from kobr4.web.deps import AppState
 from kobr4.web.jobs import JobRunner
 from kobr4.web.routes import account, auth, bots, live, research
+from kobr4.web.scheduler import LabScheduler
 from kobr4.web.security import RateLimiter
 from kobr4.web.supervisor import BotSupervisor, default_calendar
 
@@ -51,10 +52,13 @@ def create_app(
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         if create_tables:
             await database.create_all()
+        scheduler = LabScheduler(database, box, state.jobs, str(config.data_dir))
         if config.start_bots:
             await sup.restore()
             sup.start_watch()
+            scheduler.start()
         yield
+        await scheduler.stop()
         await sup.shutdown()
         state.jobs.shutdown()
         await database.close()

@@ -4,7 +4,7 @@ import { api, ApiError, type Bot, type LiveStatus, type Trade } from "../api";
 import { PriceChart, type Candle } from "../components/charts";
 import { Kpi, Meter, ModePill, Notice, Panel, StatusPill } from "../components/ui";
 import { useLiveBots, useLoad, useToast } from "../context";
-import { REASON_LABEL, cls, dateTime, money, num, pct, signed, time } from "../format";
+import { REASON_LABEL, REGIME_LABEL, cls, dateTime, money, num, pct, signed, time } from "../format";
 
 export function Dashboard() {
   const { data: bots, reload } = useLoad<Bot[]>("/api/bots");
@@ -182,6 +182,11 @@ function BotDashboard({
                     <div>
                       <div style={{ fontWeight: 600 }}>{s.id} <span className="muted num" style={{ fontSize: 12 }}>v{s.version}</span></div>
                       <div className="muted" style={{ fontSize: 12.5 }}>{s.kind} · {s.timeframe} · {s.instruments.join(", ")}</div>
+                      {ls?.regime && (
+                        <div className="muted" style={{ fontSize: 12 }}>
+                          Régime : {Object.entries(ls.regime).map(([sym, r]) => `${sym} ${(REGIME_LABEL[r] ?? r).toLowerCase()}`).join(" · ")}
+                        </div>
+                      )}
                     </div>
                     {ls && (
                       <button

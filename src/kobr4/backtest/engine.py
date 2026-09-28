@@ -17,21 +17,23 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
 from itertools import groupby
+from typing import Any
 
 from kobr4.config.settings import Settings
 from kobr4.core.bus import InMemoryEventBus
 from kobr4.core.clock import SimulatedClock
-from kobr4.core.events import BarClosed, RiskRejected
+from kobr4.core.events import BarClosed, RiskApproved, RiskRejected
 from kobr4.core.models import Bar, ClosedTrade, ExitReason, OrderIntent
 from kobr4.core.prices import PriceBook, conversion_symbols
 from kobr4.core.types import Timeframe
 from kobr4.execution.brokers.simulated import SimulatedBroker
 from kobr4.execution.oms import OrderManager
+from kobr4.intel.features import FeatureTracker
 from kobr4.marketdata.resampler import BarResampler
 from kobr4.marketdata.store import ParquetBarStore
 from kobr4.portfolio import Portfolio
 from kobr4.risk.calendar import EconomicCalendar
-from kobr4.risk.manager import RiskManager
+from kobr4.risk.manager import RiskManager, SignalFilter
 from kobr4.strategies import create_strategy
 from kobr4.strategies.base import Strategy
 from kobr4.strategies.runner import StrategyRunner
@@ -47,6 +49,9 @@ class BacktestResult:
     rejections: dict[str, int]
     bars_processed: int
     rejected_intents: list[RiskRejected] = field(default_factory=list)
+    trade_context: dict[str, dict[str, Any]] = field(default_factory=dict)
+    """Par position : régime de marché et caractéristiques au moment de la décision."""
+    regime_skips: dict[str, int] = field(default_factory=dict)
 
     @property
     def final_equity(self) -> Decimal:
@@ -86,6 +91,8 @@ async def run_backtest(
     bars: dict[str, list[Bar]],
     calendar: EconomicCalendar | None = None,
     strategies: list[Strategy] | None = None,
+    signal_filters: list[SignalFilter] | None = None,
+    use_ml_filters: bool = True,
 ) -> BacktestResult:
     strategies = strategies or [create_strategy(s) for s in settings.strategies if s.enabled]
     if not strategies:
@@ -116,9 +123,31 @@ async def run_backtest(
         counter += 1
         return f"{intent.strategy_id}-{counter:06d}"
 
-    risk = RiskManager(settings.risk, bus, portfolio, prices, clock, next_id, calendar)
+    features = FeatureTracker()
+    risk = RiskManager(
+        settings.risk,
+        bus,
+        portfolio,
+        prices,
+        clock,
+        next_id,
+        calendar,
+        signal_filters=signal_filters,
+    )
     oms = OrderManager(bus, broker, portfolio, clock)
-    StrategyRunner(bus, clock, portfolio, strategies)
+    runner = StrategyRunner(bus, clock, portfolio, strategies, features)
+    timeframe_of = {s.id: s.timeframe for s in strategies}
+    context: dict[str, dict[str, Any]] = {}
+
+    def remember(e: RiskApproved) -> None:
+        tf = timeframe_of[e.intent.strategy_id]
+        context[e.order.id] = {
+            "regime": features.regime(e.intent.symbol, tf).value,
+            "features": features.features(e.intent.symbol, tf),
+            "strategy_id": e.intent.strategy_id,
+        }
+
+    bus.subscribe(RiskApproved, remember)
 
     rejected: list[RiskRejected] = []
     bus.subscribe(RiskRejected, rejected.append)
@@ -167,4 +196,6 @@ async def run_backtest(
         rejections=dict(risk.rejections),
         bars_processed=processed,
         rejected_intents=rejected,
+        trade_context=context,
+        regime_skips=dict(runner.regime_skips),
     )

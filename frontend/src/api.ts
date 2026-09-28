@@ -115,7 +115,7 @@ export type LiveStatus = {
   drawdown_pct: string;
   daily_loss_pct: string;
   stale: string[];
-  strategies: { id: string; kind: string; enabled: boolean }[];
+  strategies: { id: string; kind: string; enabled: boolean; regime: Record<string, string> }[];
   positions: Position[];
   quotes: Record<string, { bid: string; ask: string; ts: string }>;
   recent: { ts: string; type: string; message: string }[];
@@ -131,6 +131,8 @@ export type Bot = {
   config: BotConfig;
   last_error: string | null;
   live_confirmed_at: string | null;
+  auto_optimize: boolean;
+  last_auto_optimize_at: string | null;
   created_at: string;
   live?: LiveStatus | null;
 };
@@ -203,6 +205,7 @@ export type BacktestRun = {
     equity?: { ts: string; equity: number }[];
     trades?: Trade[];
     rejections?: Record<string, number>;
+    by_regime?: { regime: string; trades: number; win_rate_pct: number; pnl: number; profit_factor: number }[];
     synthetic?: boolean;
     initial_balance?: number;
     final_equity?: number;

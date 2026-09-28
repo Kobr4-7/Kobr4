@@ -122,7 +122,7 @@ async def test_backtest_from_site(env: Env) -> None:
     )
     assert r.status_code == 202, r.text
     run_id = r.json()["id"]
-    for _ in range(200):
+    for _ in range(1200):  # jusqu'à 60 s sur une machine chargée
         r = await env.client.get(f"/api/backtests/{run_id}")
         if r.json()["status"] != "running":
             break

@@ -4,7 +4,7 @@ import { api, ApiError, type BacktestRun, type Bot, type Proposal } from "../api
 import { EquityChart } from "../components/charts";
 import { Field, Kpi, Notice, Panel } from "../components/ui";
 import { useLoad, useToast } from "../context";
-import { REASON_LABEL, RULE_LABEL, cls, dateTime, pct, signed } from "../format";
+import { REASON_LABEL, REGIME_LABEL, RULE_LABEL, cls, dateTime, pct, signed } from "../format";
 
 const today = () => new Date().toISOString().slice(0, 10);
 const yearsAgo = (n: number) => {
@@ -123,6 +123,24 @@ function BacktestDetail({ id }: { id: string }) {
           <Kpi label="Trades" value={m.trades} sub={`${pct(m.win_rate_pct)} gagnants`} />
         </section>
         <EquityChart points={r.equity ?? []} height={260} />
+        {r.by_regime && r.by_regime.length > 0 && (
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>Régime à l'entrée</th><th className="r">Trades</th><th className="r">Réussite</th><th className="r">P&amp;L</th><th className="r">Profit factor</th></tr></thead>
+              <tbody>
+                {r.by_regime.map((g) => (
+                  <tr key={g.regime}>
+                    <td>{REGIME_LABEL[g.regime] ?? g.regime}</td>
+                    <td className="r num">{g.trades}</td>
+                    <td className="r num">{pct(g.win_rate_pct)}</td>
+                    <td className={`r num ${cls(g.pnl)}`}>{signed(g.pnl)}</td>
+                    <td className="r num">{g.profit_factor.toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
         {r.rejections && Object.keys(r.rejections).length > 0 && (
           <p className="muted" style={{ fontSize: 13 }}>
             Refus du risque : {Object.entries(r.rejections).map(([k, v]) => `${RULE_LABEL[k] ?? k} (${v})`).join(", ")}
