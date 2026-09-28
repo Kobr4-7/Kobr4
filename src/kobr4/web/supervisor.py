@@ -15,6 +15,7 @@ from kobr4.core.clock import LiveClock
 from kobr4.db.models import BotRecord, BrokerConnection, NotificationSettings
 from kobr4.db.session import Database
 from kobr4.execution.broker import Broker
+from kobr4.execution.brokers.ig import IgBroker
 from kobr4.execution.brokers.oanda import OandaBroker
 from kobr4.execution.brokers.saxo import SaxoBroker
 from kobr4.live.alerts import Notifier, TelegramNotifier
@@ -22,6 +23,7 @@ from kobr4.live.bot import BotState, LiveBot
 from kobr4.risk.calendar import EconomicCalendar
 from kobr4.risk.calendar_feed import fetch_calendar
 from kobr4.security.crypto import SecretBox
+from kobr4.web.ig import IgClients
 from kobr4.web.saxo import SaxoSessions
 
 log = logging.getLogger(__name__)
@@ -57,10 +59,12 @@ class BotSupervisor:
         calendar_source: CalendarSource | None = None,
         notifier_factory: Callable[[str, str], Notifier] | None = None,
         saxo: SaxoSessions | None = None,
+        ig: IgClients | None = None,
     ) -> None:
         self.db = db
         self.box = box
         self.saxo = saxo or SaxoSessions(db, box)
+        self.ig = ig or IgClients()
         self.broker_factory = broker_factory or self._broker
         self.calendar_source = calendar_source
         self.notifier_factory = notifier_factory or (
@@ -71,6 +75,8 @@ class BotSupervisor:
         self._watch: asyncio.Task[None] | None = None
 
     def _broker(self, conn: BrokerConnection, token: str) -> Broker:
+        if conn.broker == "ig":
+            return IgBroker(self.ig.client_for(conn, token), conn.account_id, LiveClock())
         if conn.broker == "saxo":
             session = self.saxo.session_for(conn, token)
             return SaxoBroker(session, conn.account_id, LiveClock(), self.saxo.transport)
@@ -192,6 +198,7 @@ class BotSupervisor:
             bot = self.bots.pop(bot_id)
             await bot.stop()
             await self._set_status(bot_id, BotState.STOPPED.value, None)
+        await self.ig.aclose()
 
 
 async def default_calendar() -> EconomicCalendar:

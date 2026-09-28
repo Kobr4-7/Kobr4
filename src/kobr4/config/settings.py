@@ -40,7 +40,7 @@ class _Strict(BaseModel):
 
 
 class BrokerSettings(_Strict):
-    name: Literal["simulated", "oanda", "saxo"]
+    name: Literal["simulated", "oanda", "saxo", "ig"]
     environment: Literal["practice", "live"] = "practice"
     account_id: str | None = None
     api_key_env: str = "KOBR4_BROKER_API_KEY"

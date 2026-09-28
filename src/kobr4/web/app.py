@@ -15,6 +15,7 @@ from kobr4.db.session import Database
 from kobr4.security.crypto import SecretBox
 from kobr4.web.config import ServerConfig
 from kobr4.web.deps import AppState
+from kobr4.web.ig import IgClients
 from kobr4.web.jobs import JobRunner
 from kobr4.web.routes import account, auth, bots, live, research, saxo
 from kobr4.web.saxo import SaxoSessions
@@ -43,6 +44,7 @@ def create_app(
         box,
         calendar_source=default_calendar,
         saxo=SaxoSessions(database, box, broker_transport),
+        ig=IgClients(broker_transport),
     )
     state = AppState(
         config=config,
