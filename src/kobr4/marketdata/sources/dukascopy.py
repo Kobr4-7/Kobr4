@@ -12,6 +12,7 @@ elles sont retirées.
 import logging
 import lzma
 import struct
+import threading
 import time as systime
 import urllib.error
 import urllib.request
@@ -67,9 +68,47 @@ def parse_candles(raw: bytes, day: date) -> pl.DataFrame:
     return pl.DataFrame(rows, schema=schema, orient="row")
 
 
-def http_fetch(url: str, retries: int = 4, timeout: float = 30) -> bytes:
-    """Télécharge une URL. Un 404 vaut « pas de données »."""
+class _Throttle:
+    """Espace les requêtes vers Dukascopy, tous fils d'exécution confondus."""
+
+    def __init__(self, interval: float) -> None:
+        self.interval = interval
+        self._next = 0.0
+        self._lock = threading.Lock()
+
+    def wait(self) -> None:
+        with self._lock:
+            now = systime.monotonic()
+            delay = self._next - now
+            self._next = max(now, self._next) + self.interval
+        if delay > 0:
+            systime.sleep(delay)
+
+    def slow_down(self) -> None:
+        with self._lock:
+            self.interval = min(self.interval * 2, 5.0)
+
+
+_throttle = _Throttle(0.25)
+
+
+def _retry_after(e: urllib.error.HTTPError, attempt: int) -> float:
+    default = min(10.0 * float(2**attempt), 120.0)
+    value = str(e.headers.get("Retry-After") or "") if e.headers else ""
+    try:
+        return max(float(value), 1.0) if value else default
+    except ValueError:
+        return default
+
+
+def http_fetch(url: str, retries: int = 8, timeout: float = 30) -> bytes:
+    """Télécharge une URL. Un 404 vaut « pas de données ».
+
+    Dukascopy limite le débit (HTTP 429) : les requêtes sont espacées, et après un 429
+    on patiente (10 s, 20 s, 40 s… jusqu'à 2 min) en ralentissant le rythme.
+    """
     for attempt in range(retries):
+        _throttle.wait()
         try:
             with urllib.request.urlopen(url, timeout=timeout) as resp:
                 body: bytes = resp.read()
@@ -79,7 +118,13 @@ def http_fetch(url: str, retries: int = 4, timeout: float = 30) -> bytes:
                 return b""
             if attempt == retries - 1:
                 raise
-        except (urllib.error.URLError, TimeoutError):
+            if e.code == 429:
+                _throttle.slow_down()
+                wait = _retry_after(e, attempt)
+                log.info("Dukascopy demande de ralentir, pause de %.0f s", wait)
+                systime.sleep(wait)
+                continue
+        except (urllib.error.URLError, TimeoutError, ConnectionError):
             if attempt == retries - 1:
                 raise
         systime.sleep(2**attempt)
@@ -118,7 +163,7 @@ def download(
     start: date,
     end: date,
     skip: set[date] | None = None,
-    workers: int = 8,
+    workers: int = 2,
     fetch: Fetcher | None = None,
 ) -> Iterator[tuple[date, pl.DataFrame]]:
     """Télécharge les jours de [start, end] absents de `skip`, en parallèle.

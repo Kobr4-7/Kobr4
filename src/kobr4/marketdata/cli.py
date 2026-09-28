@@ -40,7 +40,7 @@ def add_parser(sub: "argparse._SubParsersAction[argparse.ArgumentParser]") -> No
     dl.add_argument("--symbols", type=_symbols, required=True, help="ex. EUR/USD,GBP/USD")
     dl.add_argument("--start", type=_date, required=True)
     dl.add_argument("--end", type=_date, default=datetime.now(UTC).date() - timedelta(days=1))
-    dl.add_argument("--workers", type=int, default=8)
+    dl.add_argument("--workers", type=int, default=2)
     dl.add_argument("--force", action="store_true", help="retélécharger les jours déjà présents")
 
     imp = cmds.add_parser("import-histdata", help="importer des fichiers CSV M1 de HistData")
