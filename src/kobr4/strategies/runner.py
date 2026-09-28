@@ -8,6 +8,7 @@ from kobr4.core.bus import EventBus
 from kobr4.core.clock import Clock
 from kobr4.core.events import BarClosed, CloseRequested, SignalEmitted
 from kobr4.core.models import Bar, CloseIntent, Position
+from kobr4.core.types import Side
 from kobr4.intel.features import FeatureTracker
 from kobr4.portfolio import Portfolio
 from kobr4.strategies.base import Intent, Strategy
@@ -80,6 +81,10 @@ class StrategyRunner:
                 if len(kept) < len(intents):
                     self.regime_skips[strategy.id] = self.regime_skips.get(strategy.id, 0) + 1
                 intents = kept
+            direction = strategy.params.direction
+            if direction != "both":
+                allowed = Side.BUY if direction == "long" else Side.SELL
+                intents = [i for i in intents if isinstance(i, CloseIntent) or i.side is allowed]
             now = self.clock.now()
             for intent in intents:
                 if isinstance(intent, CloseIntent):

@@ -196,11 +196,14 @@ class RiskManager:
         mult = risk_multiplier(s.allocation, intent.strategy_id, self.portfolio.trades)
         risk_budget = equity * s.risk_per_trade_pct / 100 * mult
         raw_units = risk_budget / (intent.stop_loss_pips * pip_value)
-        units = int((raw_units / s.min_units).to_integral_value(ROUND_FLOOR)) * s.min_units
-        if units < s.min_units:
+        # min_units est exprimé pour un contrat standard de 100 000 unités (1 000 = 0,01
+        # lot) : même fraction de lot pour les autres contrats (or : 100 onces le lot).
+        step = max(1, s.min_units * instrument.contract_size // 100_000)
+        units = int((raw_units / step).to_integral_value(ROUND_FLOOR)) * step
+        if units < step:
             return Rejection(
                 "size_too_small",
-                f"risque {risk_budget:.2f} {ccy} insuffisant pour {s.min_units} unités"
+                f"risque {risk_budget:.2f} {ccy} insuffisant pour {step} unités"
                 f" avec un stop de {intent.stop_loss_pips} pips",
             )
         new_risk = intent.stop_loss_pips * pip_value * units

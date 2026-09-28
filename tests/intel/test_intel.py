@@ -189,3 +189,27 @@ def test_ml_filter_rule() -> None:
     assert refusal is not None
     assert refusal.rule == "ml_filter"
     assert check(it.model_copy(update={"strategy_id": "autre"})) is None
+
+
+@pytest.mark.parametrize(("direction", "expected"), [("long", Side.BUY), ("short", Side.SELL)])
+async def test_runner_direction_filter(direction: str, expected: Side) -> None:
+    bus, clock = InMemoryEventBus(), SimulatedClock(T0)
+    portfolio = Portfolio(bus, PriceBook(), clock, "USD", Decimal(10_000))
+    s = create_strategy(
+        StrategySettings(
+            id="s",
+            kind="breakout",
+            instruments=["EUR/USD"],
+            timeframe=Timeframe.H1,
+            params={"lookback": 5, "direction": direction},
+        )
+    )
+    StrategyRunner(bus, clock, portfolio, [s])
+    signals: list[SignalEmitted] = []
+    bus.subscribe(SignalEmitted, signals.append)
+    up = [1.10 + i * 0.001 for i in range(30)]
+    down = [up[-1] - i * 0.001 for i in range(1, 30)]
+    for b in bars(up + down, wick=0.0002):  # une hausse puis une baisse : deux cassures
+        await bus.publish(BarClosed(ts=b.close_time, bar=b))
+    assert signals
+    assert {e.intent.side for e in signals} == {expected}

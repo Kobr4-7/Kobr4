@@ -82,7 +82,9 @@ class RiskSettings(_Strict):
     leverage: Decimal = Field(default=Decimal(30), gt=0, le=500)
     allocation: AllocationSettings = AllocationSettings()
     min_units: int = Field(default=1_000, ge=1)
-    """Taille minimale d'une position, et pas d'arrondi (1 000 unités = 0,01 lot)."""
+    """Taille minimale d'une position, et pas d'arrondi, pour un contrat de 100 000 unités
+    (1 000 unités = 0,01 lot). Même fraction de lot pour les autres contrats : 1 once
+    pour l'or (lot de 100 onces)."""
 
     @model_validator(mode="after")
     def _check(self) -> Self:

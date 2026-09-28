@@ -9,7 +9,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, ClassVar, Protocol
+from typing import Any, ClassVar, Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -35,6 +35,9 @@ class BaseParams(BaseModel):
     sessions: list[Session] = Field(default_factory=list)
     regimes: list[Regime] = Field(default_factory=list)
     """Régimes de marché où la stratégie peut ouvrir des positions (vide : tous)."""
+    direction: Literal["both", "long", "short"] = "both"
+    """Sens autorisés pour ouvrir : les deux, achats seulement ou ventes seulement. Les
+    signaux contraires ferment quand même les positions ouvertes."""
 
 
 @dataclass(frozen=True)

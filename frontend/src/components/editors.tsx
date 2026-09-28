@@ -63,6 +63,12 @@ const PARAM_LABELS: Record<string, string> = {
   adx_max: "ADX max (0 : désactivé)",
   lookback: "Bougies du canal",
   atr_stop: "Stop en ATR (0 : en pips)",
+  short: "Horizon court (bougies)",
+  medium: "Horizon moyen (bougies)",
+  long: "Horizon long (bougies)",
+  vol_halflife: "Demi-vie de la volatilité (bougies)",
+  entry: "Seuil d'entrée (0 à 1)",
+  atr_period: "Période de l'ATR",
 };
 
 function isNumeric(s: ParamSchema): boolean {
@@ -134,7 +140,7 @@ export function StrategyEditor({
       {def && (
         <div className="row2">
           {Object.entries(def.params)
-            .filter(([k, s]) => k !== "sessions" && k !== "regimes" && isNumeric(s))
+            .filter(([k, s]) => k !== "sessions" && k !== "regimes" && k !== "direction" && isNumeric(s))
             .map(([k, s]) => (
               <div className="field" key={k}>
                 <label htmlFor={`p-${value.id}-${k}`}>{PARAM_LABELS[k] ?? s.title ?? k}</label>
@@ -150,6 +156,27 @@ export function StrategyEditor({
             ))}
         </div>
       )}
+      <div className="field">
+        <span className="flabel">Sens des positions</span>
+        <div className="seg" role="group" aria-label="Sens des positions">
+          {[
+            ["both", "Achats et ventes"],
+            ["long", "Achats seulement"],
+            ["short", "Ventes seulement"],
+          ].map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              style={{ fontFamily: "var(--body)" }}
+              aria-pressed={((params.direction as string | undefined) ?? "both") === id}
+              onClick={() => setParam("direction", id)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <span className="hint">Sur l'or, les achats seuls ont nettement mieux tenu en backtest (2019-2026).</span>
+      </div>
       <div className="field">
         <span className="flabel">Régimes de marché où le bot peut ouvrir des positions (aucun : tous)</span>
         <div className="chips">

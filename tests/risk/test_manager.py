@@ -42,6 +42,16 @@ def test_sizing_in_jpy(t0: datetime) -> None:
     assert order.quantity == 60_000
 
 
+def test_sizing_gold_in_ounces(t0: datetime) -> None:
+    st = make_stack(t0)
+    st.quote("XAU/USD", "3000.000", spread="0.300")
+    order = st.risk.evaluate(intent(t0, symbol="XAU/USD", sl="25"))
+    assert isinstance(order, Order)
+    # 1 pip = 1 $ par once : 100 $ de risque / 25 $ de stop → 4 onces (pas de 1 once)
+    assert order.quantity == 4
+    assert order.stop_loss_distance == Decimal("25")
+
+
 def rejected(result: object) -> str:
     assert isinstance(result, Rejection), result
     return result.rule
