@@ -23,6 +23,11 @@ log = logging.getLogger("kobr4")
 
 def build_bot(settings: Settings) -> tuple[LiveBot, Database | None]:
     b = settings.broker
+    if b.name == "saxo":
+        raise ValueError(
+            "Saxo passe par une connexion OAuth depuis le navigateur : "
+            "utiliser la plateforme web (`kobr4 server run`)"
+        )
     if b.name != "oanda":
         raise ValueError(
             "kobr4 run exige un courtier réel (oanda) ; utiliser `kobr4 backtest` sinon"

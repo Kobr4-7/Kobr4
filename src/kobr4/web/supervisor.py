@@ -16,11 +16,13 @@ from kobr4.db.models import BotRecord, BrokerConnection, NotificationSettings
 from kobr4.db.session import Database
 from kobr4.execution.broker import Broker
 from kobr4.execution.brokers.oanda import OandaBroker
+from kobr4.execution.brokers.saxo import SaxoBroker
 from kobr4.live.alerts import Notifier, TelegramNotifier
 from kobr4.live.bot import BotState, LiveBot
 from kobr4.risk.calendar import EconomicCalendar
 from kobr4.risk.calendar_feed import fetch_calendar
 from kobr4.security.crypto import SecretBox
+from kobr4.web.saxo import SaxoSessions
 
 log = logging.getLogger(__name__)
 
@@ -54,10 +56,12 @@ class BotSupervisor:
         broker_factory: BrokerFactory | None = None,
         calendar_source: CalendarSource | None = None,
         notifier_factory: Callable[[str, str], Notifier] | None = None,
+        saxo: SaxoSessions | None = None,
     ) -> None:
         self.db = db
         self.box = box
-        self.broker_factory = broker_factory or self._oanda
+        self.saxo = saxo or SaxoSessions(db, box)
+        self.broker_factory = broker_factory or self._broker
         self.calendar_source = calendar_source
         self.notifier_factory = notifier_factory or (
             lambda token, chat: TelegramNotifier(token, chat)
@@ -66,7 +70,10 @@ class BotSupervisor:
         self._locks: dict[str, asyncio.Lock] = {}
         self._watch: asyncio.Task[None] | None = None
 
-    def _oanda(self, conn: BrokerConnection, token: str) -> Broker:
+    def _broker(self, conn: BrokerConnection, token: str) -> Broker:
+        if conn.broker == "saxo":
+            session = self.saxo.session_for(conn, token)
+            return SaxoBroker(session, conn.account_id, LiveClock(), self.saxo.transport)
         env: Literal["practice", "live"] = "live" if conn.environment == "live" else "practice"
         return OandaBroker(token, conn.account_id, env, LiveClock())
 

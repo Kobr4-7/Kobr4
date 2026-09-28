@@ -140,7 +140,7 @@ async def add_broker(
 
 @router.delete("/brokers/{conn_id}")
 async def delete_broker(
-    conn_id: str, request: Request, s: DbSession, a: Current
+    conn_id: str, request: Request, st: State, s: DbSession, a: Current
 ) -> dict[str, bool]:
     conn = await s.get(BrokerConnection, conn_id)
     if conn is None or conn.user_id != a.user.id:
@@ -157,6 +157,7 @@ async def delete_broker(
     await s.delete(conn)
     await audit(s, request, a.user.id, "broker_removed", account=conn.account_id)
     await s.commit()
+    st.supervisor.saxo.forget(conn_id)
     return {"ok": True}
 
 

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { api, ApiError, type BrokerAccount, type BrokerConn, type User } from "../api";
+import { SaxoConnect, saxoReturnPending } from "../components/saxo";
 import { Field, Notice, Panel } from "../components/ui";
 import { useAuth, useLoad, useToast } from "../context";
 import { dateTime } from "../format";
@@ -135,28 +136,41 @@ function Brokers() {
   const { error, busy, run } = useAction();
   const [f, setF] = useState({ environment: "practice" as "practice" | "live", token: "", account_id: "", label: "" });
   const [accounts, setAccounts] = useState<BrokerAccount[] | null>(null);
+  const [broker, setBroker] = useState<"oanda" | "saxo">(saxoReturnPending() ? "saxo" : "oanda");
+  const toast = useToast();
   return (
     <Panel title="Comptes courtier">
       <div className="panel-b">
         {error && <Notice tone="error">{error}</Notice>}
         <div className="table-wrap">
           <table>
-            <thead><tr><th>Compte</th><th>Type</th><th>Devise</th><th>Vérifié le</th><th /></tr></thead>
+            <thead><tr><th>Compte</th><th>Courtier</th><th>Type</th><th>Devise</th><th>Vérifié le</th><th /></tr></thead>
             <tbody>
               {(data ?? []).map((b) => (
                 <tr key={b.id}>
-                  <td><strong>{b.label}</strong> <span className="muted num">{b.account_id}</span></td>
+                  <td><strong>{b.label}</strong> {b.broker !== "saxo" && <span className="muted num">{b.account_id}</span>}</td>
+                  <td>{b.broker === "saxo" ? "Saxo" : "OANDA"}</td>
                   <td><span className={`pill ${b.environment === "live" ? "live" : "paper"}`}>{b.environment === "live" ? "Réel" : "Démo"}</span></td>
                   <td>{b.account_currency}</td>
                   <td className="num">{dateTime(b.verified_at)}</td>
                   <td className="r"><button className="btn small" onClick={() => void run(async () => { await api.del(`/api/brokers/${b.id}`); reload(); }, "Connexion supprimée")}>Supprimer</button></td>
                 </tr>
               ))}
-              {(data ?? []).length === 0 && <tr><td colSpan={5} className="empty">Aucun compte connecté.</td></tr>}
+              {(data ?? []).length === 0 && <tr><td colSpan={6} className="empty">Aucun compte connecté.</td></tr>}
             </tbody>
           </table>
         </div>
-        <h3>Ajouter un compte OANDA</h3>
+        <h3>Ajouter un compte</h3>
+        <Field label="Courtier" htmlFor="bk-broker">
+          <select id="bk-broker" value={broker} onChange={(e) => setBroker(e.target.value as "oanda" | "saxo")}>
+            <option value="oanda">OANDA</option>
+            <option value="saxo">Saxo</option>
+          </select>
+        </Field>
+        {broker === "saxo" ? (
+          <SaxoConnect allowLive onDone={() => { reload(); toast("Compte connecté"); }} />
+        ) : (
+        <>
         <div className="row2">
           <Field label="Type de compte" htmlFor="bk-env">
             <select id="bk-env" value={f.environment} onChange={(e) => { setF({ ...f, environment: e.target.value as "practice" | "live" }); setAccounts(null); }}>
@@ -179,6 +193,8 @@ function Brokers() {
             <Field label="Nom affiché (facultatif)" htmlFor="bk-label"><input id="bk-label" value={f.label} onChange={(e) => setF({ ...f, label: e.target.value })} /></Field>
             <div><button className="btn primary" disabled={busy} onClick={() => void run(async () => { await api.post("/api/brokers", f); setAccounts(null); setF({ ...f, token: "", label: "" }); reload(); }, "Compte connecté")}>Connecter</button></div>
           </>
+        )}
+        </>
         )}
       </div>
     </Panel>

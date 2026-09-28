@@ -4,7 +4,7 @@ Bot de trading forex automatisé. Voir [docs/ARCHITECTURE.md](docs/ARCHITECTURE.
 
 **État : toutes les phases sont codées et testées.** Reste à brancher les vraies données et un compte démo OANDA, puis à mettre le site en ligne sur un serveur ([deploy/README.md](deploy/README.md)).
 
-Le site ([frontend/](frontend/)) est le point d'entrée : inscription, double authentification, connexion OANDA, bots, tableau de bord en direct, backtests, laboratoire. La ligne de commande `kobr4` donne accès aux mêmes briques sans le site.
+Le site ([frontend/](frontend/)) est le point d'entrée : inscription, double authentification, connexion OANDA ou Saxo, bots, tableau de bord en direct, backtests, laboratoire. La ligne de commande `kobr4` donne accès aux mêmes briques sans le site.
 
 ## Installation
 
@@ -89,7 +89,7 @@ src/kobr4/
 ├── marketdata/  # historique (Dukascopy, HistData, synthétique), stockage Parquet, bougies
 ├── strategies/  # indicateurs, croisement EMA, RSI, cassure
 ├── risk/        # gestionnaire de risque, calendrier des annonces, spreads
-├── execution/   # interface courtier, courtier simulé, OANDA, OMS
+├── execution/   # interface courtier, courtier simulé, OANDA, Saxo, OMS
 ├── portfolio/   # positions, solde, équité, drawdown
 ├── backtest/    # moteur de rejeu, statistiques, rapport HTML
 ├── lab/         # optimisation walk-forward, stabilité, Sharpe dégonflé, propositions

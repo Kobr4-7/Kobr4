@@ -16,7 +16,8 @@ from kobr4.security.crypto import SecretBox
 from kobr4.web.config import ServerConfig
 from kobr4.web.deps import AppState
 from kobr4.web.jobs import JobRunner
-from kobr4.web.routes import account, auth, bots, live, research
+from kobr4.web.routes import account, auth, bots, live, research, saxo
+from kobr4.web.saxo import SaxoSessions
 from kobr4.web.scheduler import LabScheduler
 from kobr4.web.security import RateLimiter
 from kobr4.web.supervisor import BotSupervisor, default_calendar
@@ -37,7 +38,12 @@ def create_app(
 ) -> FastAPI:
     box = SecretBox(config.master_key)
     database = db or Database(config.database_url)
-    sup = supervisor or BotSupervisor(database, box, calendar_source=default_calendar)
+    sup = supervisor or BotSupervisor(
+        database,
+        box,
+        calendar_source=default_calendar,
+        saxo=SaxoSessions(database, box, broker_transport),
+    )
     state = AppState(
         config=config,
         db=database,
@@ -56,9 +62,11 @@ def create_app(
         if config.start_bots:
             await sup.restore()
             sup.start_watch()
+            sup.saxo.start_keep_alive()
             scheduler.start()
         yield
         await scheduler.stop()
+        await sup.saxo.stop()
         await sup.shutdown()
         state.jobs.shutdown()
         await database.close()
@@ -95,7 +103,14 @@ def create_app(
             response.headers.setdefault("Cache-Control", "no-store")
         return response
 
-    for r in (auth.router, account.router, bots.router, research.router, live.router):
+    for r in (
+        auth.router,
+        account.router,
+        saxo.router,
+        bots.router,
+        research.router,
+        live.router,
+    ):
         app.include_router(r)
 
     static = config.static_dir

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { api, ApiError, type BrokerAccount, type BrokerConn, type Catalog, type StrategyConfig, type User } from "../api";
 import { RiskEditor, StrategyEditor, botPayload, defaultRisk, defaultStrategy, type RiskValues } from "../components/editors";
+import { SaxoConnect, saxoReturnPending } from "../components/saxo";
 import { Field, Notice } from "../components/ui";
 import { useAuth, useLoad, useToast } from "../context";
 
@@ -146,15 +147,42 @@ function SecurityStep() {
 }
 
 function BrokerStep() {
+  const { setUser } = useStep();
+  const [broker, setBroker] = useState<"oanda" | "saxo">(saxoReturnPending() ? "saxo" : "oanda");
+  return (
+    <div className="panel-b" style={{ padding: 0 }}>
+      <p>
+        Le bot passe ses ordres chez ton courtier. On commence toujours sur un <strong>compte démo</strong> (argent fictif).
+      </p>
+      <div className="field">
+        <span className="flabel">Courtier</span>
+        <div className="choice">
+          <button type="button" aria-pressed={broker === "oanda"} onClick={() => setBroker("oanda")}>
+            <span className="t">OANDA</span>
+            <span className="d">Jeton API (hors Union européenne)</span>
+          </button>
+          <button type="button" aria-pressed={broker === "saxo"} onClick={() => setBroker("saxo")}>
+            <span className="t">Saxo</span>
+            <span className="d">Connexion par ton application Saxo (Belgique, Union européenne)</span>
+          </button>
+        </div>
+      </div>
+      {broker === "saxo" ? (
+        <SaxoConnect allowLive={false} onDone={async () => setUser(await api.get<User>("/api/auth/me"))} />
+      ) : (
+        <OandaConnect />
+      )}
+    </div>
+  );
+}
+
+function OandaConnect() {
   const { error, busy, run, setUser } = useStep();
   const [token, setToken] = useState("");
   const [accounts, setAccounts] = useState<BrokerAccount[] | null>(null);
   const [account, setAccount] = useState("");
   return (
-    <div className="panel-b" style={{ padding: 0 }}>
-      <p>
-        Le bot passe ses ordres chez <strong>OANDA</strong>. On commence toujours sur un <strong>compte démo</strong> (argent fictif).
-      </p>
+    <>
       <ol className="muted" style={{ margin: 0, paddingLeft: 20, display: "flex", flexDirection: "column", gap: 4 }}>
         <li>
           Ouvre un compte démo gratuit sur{" "}
@@ -210,7 +238,7 @@ function BrokerStep() {
           </button>
         </>
       )}
-    </div>
+    </>
   );
 }
 
