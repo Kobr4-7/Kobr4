@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
-import { api, ApiError, type BrokerAccount, type BrokerConn, type Catalog, type StrategyConfig, type User } from "../api";
+import { api, ApiError, type BrokerConn, type Catalog, type StrategyConfig, type User } from "../api";
+import { DemoAccountForm } from "../components/demo";
 import { RiskEditor, StrategyEditor, botPayload, defaultRisk, defaultStrategy, type RiskValues } from "../components/editors";
-import { SaxoConnect, saxoReturnPending } from "../components/saxo";
 import { Field, Notice } from "../components/ui";
 import { useAuth, useLoad, useToast } from "../context";
 
@@ -10,7 +10,7 @@ const ORDER = ["profile", "security", "broker", "notifications", "setup"] as con
 const TITLES: Record<string, string> = {
   profile: "Ton profil",
   security: "Sécuriser ton compte",
-  broker: "Connecter ton courtier",
+  broker: "Ton compte démo",
   notifications: "Recevoir les alertes",
   setup: "Ton premier bot",
 };
@@ -148,97 +148,14 @@ function SecurityStep() {
 
 function BrokerStep() {
   const { setUser } = useStep();
-  const [broker, setBroker] = useState<"oanda" | "saxo">(saxoReturnPending() ? "saxo" : "oanda");
   return (
     <div className="panel-b" style={{ padding: 0 }}>
       <p>
-        Le bot passe ses ordres chez ton courtier. On commence toujours sur un <strong>compte démo</strong> (argent fictif).
+        Le bot démarre sur un <strong>compte démo</strong> géré par Kobr4 : argent fictif, mais <strong>vrais prix du marché</strong> en
+        temps réel. Aucun courtier à ouvrir.
       </p>
-      <div className="field">
-        <span className="flabel">Courtier</span>
-        <div className="choice">
-          <button type="button" aria-pressed={broker === "oanda"} onClick={() => setBroker("oanda")}>
-            <span className="t">OANDA</span>
-            <span className="d">Jeton API (hors Union européenne)</span>
-          </button>
-          <button type="button" aria-pressed={broker === "saxo"} onClick={() => setBroker("saxo")}>
-            <span className="t">Saxo</span>
-            <span className="d">Connexion par ton application Saxo (Belgique, Union européenne)</span>
-          </button>
-        </div>
-      </div>
-      {broker === "saxo" ? (
-        <SaxoConnect allowLive={false} onDone={async () => setUser(await api.get<User>("/api/auth/me"))} />
-      ) : (
-        <OandaConnect />
-      )}
+      <DemoAccountForm onDone={async () => setUser(await api.get<User>("/api/auth/me"))} />
     </div>
-  );
-}
-
-function OandaConnect() {
-  const { error, busy, run, setUser } = useStep();
-  const [token, setToken] = useState("");
-  const [accounts, setAccounts] = useState<BrokerAccount[] | null>(null);
-  const [account, setAccount] = useState("");
-  return (
-    <>
-      <ol className="muted" style={{ margin: 0, paddingLeft: 20, display: "flex", flexDirection: "column", gap: 4 }}>
-        <li>
-          Ouvre un compte démo gratuit sur{" "}
-          <a href="https://www.oanda.com/" target="_blank" rel="noreferrer">oanda.com</a>.
-        </li>
-        <li>Dans ton espace OANDA, ouvre « Gérer l'accès à l'API » et génère un jeton.</li>
-        <li>Colle le jeton ici : il est vérifié auprès d'OANDA puis enregistré chiffré.</li>
-      </ol>
-      {error && <Notice tone="error">{error}</Notice>}
-      <Field label="Jeton API OANDA (compte démo)" htmlFor="token">
-        <input id="token" type="password" autoComplete="off" value={token} onChange={(e) => setToken(e.target.value)} />
-      </Field>
-      {!accounts ? (
-        <button
-          className="btn primary"
-          disabled={busy || token.length < 10}
-          onClick={() =>
-            void run(async () => {
-              const list = await api.post<BrokerAccount[]>("/api/brokers/accounts", { token, environment: "practice" });
-              setAccounts(list);
-              setAccount(list[0]?.id ?? "");
-            })
-          }
-        >
-          Chercher mes comptes
-        </button>
-      ) : (
-        <>
-          <div className="field">
-            <span className="flabel">Compte à utiliser</span>
-            <div className="choice">
-              {accounts.map((a) => (
-                <button key={a.id} type="button" aria-pressed={account === a.id} onClick={() => setAccount(a.id)}>
-                  <span className="t num">{a.id}</span>
-                  <span className="d">
-                    {a.alias || "Compte démo"} · {Number(a.balance).toLocaleString("fr-FR")} {a.currency}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-          <button
-            className="btn primary"
-            disabled={busy || !account}
-            onClick={() =>
-              void run(async () => {
-                await api.post<BrokerConn>("/api/brokers", { token, account_id: account, environment: "practice" });
-                setUser(await api.get<User>("/api/auth/me"));
-              })
-            }
-          >
-            Connecter ce compte
-          </button>
-        </>
-      )}
-    </>
   );
 }
 

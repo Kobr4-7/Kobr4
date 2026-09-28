@@ -297,7 +297,7 @@ export function BotDetail() {
               >
                 <Notice tone="warn">En réel, chaque perte est une vraie perte. Commence avec un petit capital.</Notice>
                 {liveConns.length === 0 ? (
-                  <p>Connecte d'abord un compte réel (OANDA ou Saxo) dans les <Link to="/reglages">réglages</Link>.</p>
+                  <p>Le passage en argent réel demandera un courtier : il sera ajouté une fois la période de démo terminée.</p>
                 ) : (
                   <>
                     <Field label="Compte réel" htmlFor="live-conn">

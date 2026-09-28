@@ -3,8 +3,11 @@ redémarrage du serveur, suivi des pannes."""
 
 import asyncio
 import contextlib
+import json
 import logging
 from collections.abc import Awaitable, Callable
+from decimal import Decimal
+from pathlib import Path
 from typing import Any, Literal
 
 import httpx
@@ -15,16 +18,14 @@ from kobr4.core.clock import LiveClock
 from kobr4.db.models import BotRecord, BrokerConnection, NotificationSettings
 from kobr4.db.session import Database
 from kobr4.execution.broker import Broker
-from kobr4.execution.brokers.ig import IgBroker
 from kobr4.execution.brokers.oanda import OandaBroker
-from kobr4.execution.brokers.saxo import SaxoBroker
+from kobr4.execution.brokers.paper import PaperBroker
 from kobr4.live.alerts import Notifier, TelegramNotifier
 from kobr4.live.bot import BotState, LiveBot
+from kobr4.marketdata.store import ParquetBarStore
 from kobr4.risk.calendar import EconomicCalendar
 from kobr4.risk.calendar_feed import fetch_calendar
 from kobr4.security.crypto import SecretBox
-from kobr4.web.ig import IgClients
-from kobr4.web.saxo import SaxoSessions
 
 log = logging.getLogger(__name__)
 
@@ -58,28 +59,36 @@ class BotSupervisor:
         broker_factory: BrokerFactory | None = None,
         calendar_source: CalendarSource | None = None,
         notifier_factory: Callable[[str, str], Notifier] | None = None,
-        saxo: SaxoSessions | None = None,
-        ig: IgClients | None = None,
+        data_dir: Path = Path("data"),
+        paper_options: dict[str, Any] | None = None,
     ) -> None:
         self.db = db
         self.box = box
-        self.saxo = saxo or SaxoSessions(db, box)
-        self.ig = ig or IgClients()
+        self.data_dir = data_dir
+        self.paper_options = paper_options or {}
+        """Options passées aux comptes démo (tests : faux flux de prix, faux historique)."""
         self.broker_factory = broker_factory or self._broker
         self.calendar_source = calendar_source
         self.notifier_factory = notifier_factory or (
             lambda token, chat: TelegramNotifier(token, chat)
         )
         self.bots: dict[str, LiveBot] = {}
+        self._conn_of: dict[str, str] = {}
+        """Connexion utilisée par chaque bot en marche."""
         self._locks: dict[str, asyncio.Lock] = {}
         self._watch: asyncio.Task[None] | None = None
 
     def _broker(self, conn: BrokerConnection, token: str) -> Broker:
-        if conn.broker == "ig":
-            return IgBroker(self.ig.client_for(conn, token), conn.account_id, LiveClock())
-        if conn.broker == "saxo":
-            session = self.saxo.session_for(conn, token)
-            return SaxoBroker(session, conn.account_id, LiveClock(), self.saxo.transport)
+        if conn.broker == "paper":
+            cfg = json.loads(token)
+            return PaperBroker(
+                cfg["finnhub_key"],
+                self.data_dir / "paper" / f"{conn.id}.json",
+                ParquetBarStore(self.data_dir),
+                currency=conn.account_currency or "USD",
+                initial_balance=Decimal(str(cfg.get("initial_balance", 10_000))),
+                **self.paper_options,
+            )
         env: Literal["practice", "live"] = "live" if conn.environment == "live" else "practice"
         return OandaBroker(token, conn.account_id, env, LiveClock())
 
@@ -105,6 +114,17 @@ class BotSupervisor:
                 )
                 if conn is None:
                     raise ValueError("aucune connexion courtier associée à ce bot")
+                if conn.broker == "paper" and any(
+                    c == conn.id
+                    and b != bot_id
+                    and b in self.bots
+                    and self.bots[b].state in (BotState.RUNNING, BotState.STARTING)
+                    for b, c in self._conn_of.items()
+                ):
+                    raise ValueError(
+                        "ce compte démo est déjà utilisé par un autre bot en marche : "
+                        "crée un autre compte démo dans les réglages"
+                    )
                 notif = await s.get(NotificationSettings, record.user_id)
                 settings = bot_settings(record, conn)
                 token = self.box.decrypt(conn.token_encrypted, context=record.user_id)
@@ -132,6 +152,7 @@ class BotSupervisor:
                 calendar_source=self.calendar_source,
             )
             self.bots[bot_id] = bot
+            self._conn_of[bot_id] = conn.id
             try:
                 await bot.start()
             except Exception as e:
@@ -198,7 +219,6 @@ class BotSupervisor:
             bot = self.bots.pop(bot_id)
             await bot.stop()
             await self._set_status(bot_id, BotState.STOPPED.value, None)
-        await self.ig.aclose()
 
 
 async def default_calendar() -> EconomicCalendar:

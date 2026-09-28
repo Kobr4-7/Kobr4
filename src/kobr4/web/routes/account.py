@@ -1,14 +1,17 @@
 """Profil, parcours d'inscription, connexions courtier, notifications."""
 
+import json
 from datetime import UTC, datetime
 from typing import Any, Literal
 
+import httpx
 from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from kobr4.config.settings import RiskSettings, Settings, StrategySettings
 from kobr4.db.models import BotRecord, BrokerConnection, NotificationSettings
+from kobr4.execution.brokers.paper import FINNHUB_API
 from kobr4.live.alerts import TelegramNotifier
 from kobr4.strategies import create_strategy
 from kobr4.web.brokers import BrokerCheckError, oanda_accounts, verify_oanda
@@ -91,6 +94,62 @@ async def list_broker_accounts(body: TokenIn, st: State, a: Current) -> list[dic
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(e)) from e
 
 
+class DemoIn(BaseModel):
+    finnhub_key: str = Field(min_length=10, max_length=100)
+    initial_balance: int = Field(default=10_000, ge=1_000, le=1_000_000)
+    currency: Literal["USD", "EUR"] = "USD"
+    label: str = Field(default="", max_length=80)
+
+
+async def check_finnhub_key(key: str, transport: Any = None) -> None:
+    """Vérifie la clé Finnhub par une requête gratuite (cotation d'une action US)."""
+    async with httpx.AsyncClient(timeout=10, transport=transport) as c:
+        try:
+            resp = await c.get(f"{FINNHUB_API}/quote", params={"symbol": "AAPL", "token": key})
+        except httpx.HTTPError as e:
+            raise HTTPException(
+                status.HTTP_502_BAD_GATEWAY, f"Finnhub injoignable ({e.__class__.__name__})"
+            ) from e
+    if resp.status_code in (401, 403):
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "clé Finnhub refusée : copie-la à nouveau depuis ton tableau de bord Finnhub",
+        )
+    if resp.status_code >= 400:
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY, f"Finnhub a répondu HTTP {resp.status_code}"
+        )
+
+
+@router.post("/brokers/demo", status_code=201)
+async def add_demo_account(
+    body: DemoIn, request: Request, st: State, s: DbSession, a: Current
+) -> dict[str, object]:
+    """Compte démo interne : argent fictif, prix réels fournis par Finnhub."""
+    _require_mfa(a)
+    key = body.finnhub_key.strip()
+    await check_finnhub_key(key, st.broker_transport)
+    secret = json.dumps({"finnhub_key": key, "initial_balance": body.initial_balance})
+    conn = BrokerConnection(
+        user_id=a.user.id,
+        broker="paper",
+        environment="practice",
+        account_id="demo",
+        token_encrypted=st.box.encrypt(secret, context=a.user.id),
+        label=body.label or "Compte démo",
+        account_currency=body.currency,
+        verified_at=datetime.now(UTC),
+    )
+    s.add(conn)
+    if a.user.onboarding_step == "broker":
+        a.user.onboarding_step = "notifications"
+    await s.flush()
+    conn.account_id = f"demo-{conn.id[:8]}"
+    await audit(s, request, a.user.id, "broker_added", broker="paper", environment="practice")
+    await s.commit()
+    return broker_out(conn)
+
+
 @router.get("/brokers")
 async def list_brokers(s: DbSession, a: Current) -> list[dict[str, object]]:
     rows = await s.scalars(select(BrokerConnection).where(BrokerConnection.user_id == a.user.id))
@@ -140,7 +199,7 @@ async def add_broker(
 
 @router.delete("/brokers/{conn_id}")
 async def delete_broker(
-    conn_id: str, request: Request, st: State, s: DbSession, a: Current
+    conn_id: str, request: Request, s: DbSession, a: Current
 ) -> dict[str, bool]:
     conn = await s.get(BrokerConnection, conn_id)
     if conn is None or conn.user_id != a.user.id:
@@ -157,7 +216,6 @@ async def delete_broker(
     await s.delete(conn)
     await audit(s, request, a.user.id, "broker_removed", account=conn.account_id)
     await s.commit()
-    st.supervisor.saxo.forget(conn_id)
     return {"ok": True}
 
 

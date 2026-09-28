@@ -2,9 +2,9 @@
 
 Bot de trading forex automatisé. Voir [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) pour l'architecture et la feuille de route, et [maquette/](maquette/) pour la maquette du tableau de bord.
 
-**État : toutes les phases sont codées et testées.** Reste à brancher les vraies données et un compte démo OANDA, puis à mettre le site en ligne sur un serveur ([deploy/README.md](deploy/README.md)).
+**État : toutes les phases sont codées et testées.** Les bots tournent sur un compte démo interne (argent fictif, prix réels de Finnhub) ; un courtier réel sera branché pour passer en argent réel. Mise en ligne sur un serveur sur un serveur ([deploy/README.md](deploy/README.md)).
 
-Le site ([frontend/](frontend/)) est le point d'entrée : inscription, double authentification, connexion OANDA ou Saxo, bots, tableau de bord en direct, backtests, laboratoire. La ligne de commande `kobr4` donne accès aux mêmes briques sans le site.
+Le site ([frontend/](frontend/)) est le point d'entrée : inscription, double authentification, compte démo, bots, tableau de bord en direct, backtests, laboratoire. La ligne de commande `kobr4` donne accès aux mêmes briques sans le site.
 
 ## Installation
 
@@ -89,7 +89,7 @@ src/kobr4/
 ├── marketdata/  # historique (Dukascopy, HistData, synthétique), stockage Parquet, bougies
 ├── strategies/  # indicateurs, croisement EMA, RSI, cassure
 ├── risk/        # gestionnaire de risque, calendrier des annonces, spreads
-├── execution/   # interface courtier, courtier simulé, OANDA, Saxo, OMS
+├── execution/   # interface courtier, courtier simulé, compte démo (Finnhub), OMS
 ├── portfolio/   # positions, solde, équité, drawdown
 ├── backtest/    # moteur de rejeu, statistiques, rapport HTML
 ├── lab/         # optimisation walk-forward, stabilité, Sharpe dégonflé, propositions

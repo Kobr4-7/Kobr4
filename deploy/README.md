@@ -6,7 +6,7 @@ Résultat : le site Kobr4 FX accessible en HTTPS sur ton domaine, depuis ordinat
 
 | Élément | Recommandation |
 |---|---|
-| Serveur (VPS) | Linux Ubuntu 24.04, 2 vCPU, 4 Go de RAM, 40 Go de disque, **à Londres** (proche des serveurs d'OANDA). Ex. Hetzner, OVHcloud, Vultr, DigitalOcean. 10 à 25 €/mois. |
+| Serveur (VPS) | Linux Ubuntu 24.04, 2 vCPU, 4 Go de RAM, 40 Go de disque, en Europe. Ex. Hetzner, OVHcloud, Vultr, DigitalOcean. 10 à 25 €/mois. |
 | Nom de domaine | Un domaine ou sous-domaine (ex. `trading.tondomaine.fr`) avec un enregistrement DNS **A** vers l'adresse IP du serveur. |
 | Accès | Connexion SSH par clé (pas par mot de passe). |
 
@@ -51,21 +51,9 @@ docker compose --env-file deploy/.env up -d --build
 docker compose --env-file deploy/.env logs -f app     # Ctrl+C pour quitter
 ```
 
-Ouvre `https://ton-domaine` : le certificat HTTPS est obtenu automatiquement en quelques secondes. Crée ton compte (le premier compte est administrateur), puis suis le parcours d'accueil : double authentification, compte démo OANDA, alertes Telegram, premier bot.
+Ouvre `https://ton-domaine` : le certificat HTTPS est obtenu automatiquement en quelques secondes. Crée ton compte (le premier compte est administrateur), puis suis le parcours d'accueil : double authentification, compte démo (clé gratuite [Finnhub](https://finnhub.io/register) pour les prix en direct), alertes Telegram, premier bot.
 
-## 4. Connecter un compte Saxo (Belgique, Union européenne)
-
-Depuis l'Union européenne, OANDA ne donne plus accès à son API. Saxo passe par une connexion OAuth :
-
-1. Crée un compte développeur gratuit sur [developer.saxo](https://www.developer.saxo/) (environnement de simulation).
-2. Crée une application de type **Code** (Authorization Code Grant) avec l'adresse de retour `https://ton-domaine/api/brokers/saxo/callback` (elle est aussi affichée sur le site).
-3. Sur le site, choisis **Saxo**, colle la clé (App Key) et le secret (App Secret), puis connecte-toi chez Saxo et choisis le compte.
-
-Le serveur renouvelle seul l'autorisation (jetons chiffrés en base). Si le serveur reste arrêté plus d'une heure environ, l'autorisation expire : reconnecte le compte depuis les réglages.
-
-Côté Saxo, le compte doit être en mode **« end of day netting »** (chaque ordre garde sa propre position), le mode par défaut des comptes de simulation. Les cotations sont relues chaque seconde, ce qui convient aux stratégies en M15 et au-delà.
-
-## 5. Historique pour les backtests et le laboratoire
+## 4. Historique pour les backtests et le laboratoire
 
 ```bash
 docker compose --env-file deploy/.env exec app \
@@ -75,7 +63,7 @@ docker compose --env-file deploy/.env exec app kobr4 data info
 
 Le téléchargement reprend là où il s'est arrêté si on le relance.
 
-## 6. Supervision (facultatif)
+## 5. Supervision (facultatif)
 
 ```bash
 mkdir -p deploy/secrets && grep KOBR4_METRICS_TOKEN deploy/.env | cut -d= -f2 > deploy/secrets/metrics_token

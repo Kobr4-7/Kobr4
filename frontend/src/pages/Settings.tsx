@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { api, ApiError, type BrokerAccount, type BrokerConn, type User } from "../api";
-import { SaxoConnect, saxoReturnPending } from "../components/saxo";
+import { api, ApiError, type BrokerConn, type User } from "../api";
+import { DemoAccountForm } from "../components/demo";
 import { Field, Notice, Panel } from "../components/ui";
 import { useAuth, useLoad, useToast } from "../context";
 import { dateTime } from "../format";
@@ -133,69 +133,31 @@ function Sessions() {
 
 function Brokers() {
   const { data, reload } = useLoad<BrokerConn[]>("/api/brokers");
-  const { error, busy, run } = useAction();
-  const [f, setF] = useState({ environment: "practice" as "practice" | "live", token: "", account_id: "", label: "" });
-  const [accounts, setAccounts] = useState<BrokerAccount[] | null>(null);
-  const [broker, setBroker] = useState<"oanda" | "saxo">(saxoReturnPending() ? "saxo" : "oanda");
+  const { error, run } = useAction();
   const toast = useToast();
   return (
-    <Panel title="Comptes courtier">
+    <Panel title="Comptes démo">
       <div className="panel-b">
         {error && <Notice tone="error">{error}</Notice>}
         <div className="table-wrap">
           <table>
-            <thead><tr><th>Compte</th><th>Courtier</th><th>Type</th><th>Devise</th><th>Vérifié le</th><th /></tr></thead>
+            <thead><tr><th>Compte</th><th>Devise</th><th>Créé le</th><th /></tr></thead>
             <tbody>
               {(data ?? []).map((b) => (
                 <tr key={b.id}>
-                  <td><strong>{b.label}</strong> {b.broker !== "saxo" && <span className="muted num">{b.account_id}</span>}</td>
-                  <td>{b.broker === "saxo" ? "Saxo" : "OANDA"}</td>
-                  <td><span className={`pill ${b.environment === "live" ? "live" : "paper"}`}>{b.environment === "live" ? "Réel" : "Démo"}</span></td>
+                  <td><strong>{b.label}</strong> <span className="pill paper">Démo</span></td>
                   <td>{b.account_currency}</td>
                   <td className="num">{dateTime(b.verified_at)}</td>
-                  <td className="r"><button className="btn small" onClick={() => void run(async () => { await api.del(`/api/brokers/${b.id}`); reload(); }, "Connexion supprimée")}>Supprimer</button></td>
+                  <td className="r"><button className="btn small" onClick={() => void run(async () => { await api.del(`/api/brokers/${b.id}`); reload(); }, "Compte supprimé")}>Supprimer</button></td>
                 </tr>
               ))}
-              {(data ?? []).length === 0 && <tr><td colSpan={6} className="empty">Aucun compte connecté.</td></tr>}
+              {(data ?? []).length === 0 && <tr><td colSpan={4} className="empty">Aucun compte démo.</td></tr>}
             </tbody>
           </table>
         </div>
-        <h3>Ajouter un compte</h3>
-        <Field label="Courtier" htmlFor="bk-broker">
-          <select id="bk-broker" value={broker} onChange={(e) => setBroker(e.target.value as "oanda" | "saxo")}>
-            <option value="oanda">OANDA</option>
-            <option value="saxo">Saxo</option>
-          </select>
-        </Field>
-        {broker === "saxo" ? (
-          <SaxoConnect allowLive onDone={() => { reload(); toast("Compte connecté"); }} />
-        ) : (
-        <>
-        <div className="row2">
-          <Field label="Type de compte" htmlFor="bk-env">
-            <select id="bk-env" value={f.environment} onChange={(e) => { setF({ ...f, environment: e.target.value as "practice" | "live" }); setAccounts(null); }}>
-              <option value="practice">Démo (argent fictif)</option>
-              <option value="live">Réel</option>
-            </select>
-          </Field>
-          <Field label="Jeton API" htmlFor="bk-token"><input id="bk-token" type="password" autoComplete="off" value={f.token} onChange={(e) => { setF({ ...f, token: e.target.value }); setAccounts(null); }} /></Field>
-        </div>
-        {f.environment === "live" && <Notice tone="warn">Un compte réel ne sert qu'aux bots passés en réel, après la période de démo obligatoire.</Notice>}
-        {!accounts ? (
-          <div><button className="btn" disabled={busy || f.token.length < 10} onClick={() => void run(async () => { const a = await api.post<BrokerAccount[]>("/api/brokers/accounts", { token: f.token, environment: f.environment }); setAccounts(a); setF((x) => ({ ...x, account_id: a[0]?.id ?? "" })); })}>Chercher mes comptes</button></div>
-        ) : (
-          <>
-            <Field label="Compte" htmlFor="bk-acc">
-              <select id="bk-acc" value={f.account_id} onChange={(e) => setF({ ...f, account_id: e.target.value })}>
-                {accounts.map((a) => <option key={a.id} value={a.id}>{a.id} · {a.alias || "sans nom"} · {a.balance} {a.currency}</option>)}
-              </select>
-            </Field>
-            <Field label="Nom affiché (facultatif)" htmlFor="bk-label"><input id="bk-label" value={f.label} onChange={(e) => setF({ ...f, label: e.target.value })} /></Field>
-            <div><button className="btn primary" disabled={busy} onClick={() => void run(async () => { await api.post("/api/brokers", f); setAccounts(null); setF({ ...f, token: "", label: "" }); reload(); }, "Compte connecté")}>Connecter</button></div>
-          </>
-        )}
-        </>
-        )}
+        <h3>Ajouter un compte démo</h3>
+        <p className="muted">Un compte démo par bot en marche : chaque bot a son propre capital fictif.</p>
+        <DemoAccountForm onDone={() => { reload(); toast("Compte démo créé"); }} />
       </div>
     </Panel>
   );
