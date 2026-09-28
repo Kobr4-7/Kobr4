@@ -65,6 +65,9 @@ class RiskSettings(_Strict):
     max_drawdown_pct: Decimal = Field(default=Decimal("10"), gt=0, le=50)
     max_spread_multiplier: Decimal = Field(default=Decimal("2"), ge=1)
     news_blackout_minutes: int = Field(default=30, ge=0)
+    leverage: Decimal = Field(default=Decimal(30), gt=0, le=500)
+    min_units: int = Field(default=1_000, ge=1)
+    """Taille minimale d'une position, et pas d'arrondi (1 000 unités = 0,01 lot)."""
 
     @model_validator(mode="after")
     def _check(self) -> Self:
@@ -73,6 +76,16 @@ class RiskSettings(_Strict):
         if self.max_daily_loss_pct > self.max_drawdown_pct:
             raise ValueError("la perte journalière maximale dépasse le drawdown maximal")
         return self
+
+
+class BacktestSettings(_Strict):
+    """Coûts et capital simulés."""
+
+    initial_balance: Decimal = Field(default=Decimal(10_000), gt=0)
+    slippage_pips: Decimal = Field(default=Decimal("0.2"), ge=0)
+    commission_per_million: Decimal = Field(default=Decimal(0), ge=0)
+    """Commission par million d'unités échangées, par sens (0 pour un compte sans
+    commission, où le coût est dans le spread)."""
 
 
 class StrategySettings(_Strict):
@@ -91,6 +104,9 @@ class Settings(_Strict):
     broker: BrokerSettings
     risk: RiskSettings = RiskSettings()
     strategies: list[StrategySettings] = Field(default_factory=list)
+    backtest: BacktestSettings = BacktestSettings()
+    news_calendar: Path | None = None
+    """Fichier YAML des annonces économiques (voir risk/calendar.py)."""
     confirm_live: bool = False
 
     @field_validator("instruments")

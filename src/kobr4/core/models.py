@@ -4,6 +4,7 @@ Tous les modèles sont immuables. Les prix et montants sont des `Decimal`.
 """
 
 from decimal import Decimal
+from enum import StrEnum
 from typing import Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -111,22 +112,94 @@ class Fill(_Frozen):
     ts: UtcDatetime
 
 
-class Position(_Frozen):
-    """Position ouverte d'une stratégie sur un instrument. `quantity` en unités."""
+class CloseIntent(_Frozen):
+    """Demande d'une stratégie de fermer ses positions sur un instrument.
 
+    Une fermeture n'est jamais bloquée par le gestionnaire de risque.
+    """
+
+    strategy_id: str = Field(min_length=1)
+    symbol: str
+    side: Side | None = None
+    """Ne ferme que les positions de ce sens ; toutes si absent."""
+    ts: UtcDatetime
+    reason: str = ""
+
+
+class Position(_Frozen):
+    """Position ouverte, issue de l'exécution d'un ordre. `quantity` en unités.
+
+    `id` est l'identifiant de l'ordre qui l'a ouverte.
+    """
+
+    id: str
     strategy_id: str
     symbol: str
     side: Side
     quantity: int = Field(gt=0)
-    avg_price: Price = Field(gt=0)
-    stop_loss: Price | None = None
-    take_profit: Price | None = None
+    entry_price: Price = Field(gt=0)
+    stop_loss: Price = Field(gt=0)
+    take_profit: Price | None = Field(default=None, gt=0)
     opened_at: UtcDatetime
 
+    @model_validator(mode="after")
+    def _check_protection(self) -> Self:
+        s = self.side.sign
+        if (self.stop_loss - self.entry_price) * s >= 0:
+            raise ValueError(
+                f"stop loss {self.stop_loss} du mauvais côté pour un {self.side}"
+                f" à {self.entry_price}"
+            )
+        if self.take_profit is not None and (self.take_profit - self.entry_price) * s <= 0:
+            raise ValueError(
+                f"take profit {self.take_profit} du mauvais côté pour un {self.side}"
+                f" à {self.entry_price}"
+            )
+        return self
+
+    def exit_price(self, tick: Tick) -> Price:
+        """Prix de fermeture : bid pour un achat, ask pour une vente."""
+        return tick.price_for(self.side.opposite)
+
+    def pnl_quote(self, exit_price: Price) -> Money:
+        """P&L en devise de cotation pour une sortie à `exit_price`."""
+        return (exit_price - self.entry_price) * self.side.sign * self.quantity
+
     def unrealized_pnl(self, tick: Tick) -> Money:
-        """P&L latent en devise de cotation, valorisé au prix de clôture (bid ou ask)."""
-        exit_price = tick.price_for(self.side.opposite)
-        return (exit_price - self.avg_price) * self.side.sign * self.quantity
+        """P&L latent en devise de cotation, valorisé au prix de fermeture."""
+        return self.pnl_quote(self.exit_price(tick))
+
+    def risk_quote(self) -> Money:
+        """Perte en devise de cotation si le stop loss est touché."""
+        return abs(self.entry_price - self.stop_loss) * self.quantity
+
+
+class ExitReason(StrEnum):
+    STOP_LOSS = "stop_loss"
+    TAKE_PROFIT = "take_profit"
+    SIGNAL = "signal"
+    MANUAL = "manual"
+    KILL_SWITCH = "kill_switch"
+    END_OF_TEST = "end_of_test"
+
+
+class ClosedTrade(_Frozen):
+    """Position fermée, avec son résultat en devise du compte."""
+
+    position_id: str
+    strategy_id: str
+    symbol: str
+    side: Side
+    quantity: int = Field(gt=0)
+    entry_price: Price
+    exit_price: Price
+    opened_at: UtcDatetime
+    closed_at: UtcDatetime
+    reason: ExitReason
+    pnl: Money
+    """Résultat net en devise du compte, commissions et financement déduits."""
+    commission: Money = Decimal(0)
+    financing: Money = Decimal(0)
 
 
 class Account(_Frozen):

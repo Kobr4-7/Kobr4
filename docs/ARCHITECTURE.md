@@ -104,6 +104,7 @@ class Strategy(Protocol):
 
 - `StrategyContext` donne accès en lecture aux indicateurs, aux positions de la stratégie et à l'horloge. Aucun accès au courtier.
 - Une `OrderIntent` exprime une intention (« acheter EUR/USD, SL 25 pips, TP 50 pips »), **sans taille**. La taille est calculée par le risque.
+- Une `CloseIntent` demande la fermeture des positions de la stratégie sur une paire. Les fermetures ne passent pas par le risque : elles ne sont jamais bloquées.
 - Paramètres chargés depuis un fichier de configuration versionné.
 - Premières stratégies : croisement EMA (tendance), RSI (retour à la moyenne), cassure de range.
 
@@ -125,6 +126,8 @@ Point de passage obligatoire. Transforme une `OrderIntent` en `Order` ou la refu
 
 ### 4.5 Exécution / OMS (`execution`)
 - Machine à états de chaque ordre (voir [§5.2](#52-cycle-de-vie-dun-ordre)).
+- Le stop loss et le take profit sont transmis en **distance** au prix d'exécution : le courtier les pose au moment de l'exécution, donc toujours du bon côté du prix réel.
+- Le portefeuille est mis à jour par l'OMS dès que le courtier signale un changement, avant la diffusion de l'événement : ainsi, dans un retournement (fermer la vente, ouvrir l'achat), le risque voit déjà la vente fermée.
 - Identifiant client unique par ordre, pour ne jamais envoyer deux fois le même ordre après une coupure.
 - Envoi via l'adaptateur `Broker`, gestion des refus, des exécutions partielles et des délais d'attente.
 - **Réconciliation** au démarrage puis toutes les minutes : compare positions et ordres locaux avec ceux du courtier. En cas d'écart, alerte et blocage des entrées.
@@ -151,7 +154,9 @@ Positions, P&L réalisé et flottant, équité, marge, drawdown, statistiques pa
 
 ### 4.7 Backtest (`backtest`)
 - Rejoue l'historique à travers **les mêmes** stratégies, le même risque et l'OMS, avec `SimulatedClock` et `SimulatedBroker`.
-- Le courtier simulé modélise le spread réel (bid/ask), le glissement, les commissions et le swap de nuit.
+- Le courtier simulé exécute les ordres au marché au dernier prix connu (ask à l'achat, bid à la vente) plus le glissement. Stops et objectifs sont contrôlés sur le plus haut et le plus bas de chaque bougie (ask = bid + spread pour les ventes) ; si les deux sont atteints dans la même bougie, le stop est supposé touché en premier ; un gap au-delà du stop sort à l'ouverture. Commission paramétrable par million échangé. Le financement de nuit (swap) n'est pas encore simulé.
+- Les stratégies en unité longue (H4…) reçoivent des bougies agrégées en continu depuis l'unité la plus courte utilisée : les stops sont contrôlés sur cette unité courte.
+- Historique synthétique (`kobr4 data synth`) pour tester toute la chaîne sans données réelles ; le dossier est marqué et chaque rapport l'affiche en tête.
 - Rapport : rendement, drawdown max, ratio de Sharpe, profit factor, taux de réussite, espérance par trade, courbe d'équité.
 - Walk-forward et tests hors échantillon pour limiter la sur-optimisation.
 
@@ -390,4 +395,5 @@ Kobr4/
 
 **Avancement**
 - Phase 0 terminée : modèles du domaine, cycle de vie des ordres, bus d'événements, horloges, configuration validée, CI.
+- Phases 2 et 3 terminées : trois stratégies (croisement EMA, RSI, cassure), gestionnaire de risque complet, OMS avec réconciliation, courtier simulé, moteur de backtest et rapport HTML (`kobr4 backtest`).
 - Phase 1 en cours : historique M1 (Dukascopy, HistData), stockage Parquet, agrégation en H1/H4/D1, construction des bougies en direct, contrôle qualité. Reste : télécharger les 3 ans d'historique, puis l'adaptateur OANDA en lecture une fois le compte démo ouvert.

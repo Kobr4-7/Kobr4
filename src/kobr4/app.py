@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from kobr4 import __version__
+from kobr4.backtest import cli as backtest_cli
 from kobr4.config import ConfigError, Mode, Settings, load_settings
 from kobr4.core.bus import EventBus, InMemoryEventBus
 from kobr4.core.clock import Clock, LiveClock, SimulatedClock
@@ -45,6 +46,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     run_p = sub.add_parser("run", help="démarrer le bot")
     run_p.add_argument("--config", required=True, help="fichier de configuration YAML")
     data_cli.add_parser(sub)
+    backtest_cli.add_parser(sub)
     args = parser.parse_args(argv)
 
     logging.basicConfig(
@@ -52,6 +54,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     if args.cmd == "data":
         return data_cli.run(args)
+    if args.cmd == "backtest":
+        return backtest_cli.run(args)
     return _run(args.config)
 
 

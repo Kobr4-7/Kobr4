@@ -91,12 +91,54 @@ def test_position_unrealized_pnl(
     t0: datetime, side: Side, bid: str, ask: str, expected: Decimal
 ) -> None:
     pos = Position(
+        id="p1",
         strategy_id="s",
         symbol="EUR/USD",
         side=side,
         quantity=40_000,
-        avg_price=Decimal("1.08200"),
+        entry_price=Decimal("1.08200"),
+        stop_loss=Decimal("1.07") if side is Side.BUY else Decimal("1.09"),
         opened_at=t0,
     )
     tick = Tick(symbol="EUR/USD", bid=Decimal(bid), ask=Decimal(ask), ts=t0)
     assert pos.unrealized_pnl(tick) == expected
+
+
+@pytest.mark.parametrize(
+    ("side", "sl", "tp", "match"),
+    [
+        (Side.BUY, "1.0830", None, "stop loss"),
+        (Side.BUY, "1.0800", "1.0810", "take profit"),
+        (Side.SELL, "1.0800", None, "stop loss"),
+        (Side.SELL, "1.0840", "1.0830", "take profit"),
+    ],
+)
+def test_position_protection_on_wrong_side(
+    t0: datetime, side: Side, sl: str, tp: str | None, match: str
+) -> None:
+    with pytest.raises(ValidationError, match=match):
+        Position(
+            id="p",
+            strategy_id="s",
+            symbol="EUR/USD",
+            side=side,
+            quantity=1000,
+            entry_price=Decimal("1.0820"),
+            stop_loss=Decimal(sl),
+            take_profit=Decimal(tp) if tp else None,
+            opened_at=t0,
+        )
+
+
+def test_position_risk(t0: datetime) -> None:
+    pos = Position(
+        id="p",
+        strategy_id="s",
+        symbol="EUR/USD",
+        side=Side.BUY,
+        quantity=40_000,
+        entry_price=Decimal("1.08200"),
+        stop_loss=Decimal("1.07950"),
+        opened_at=t0,
+    )
+    assert pos.risk_quote() == Decimal("100")

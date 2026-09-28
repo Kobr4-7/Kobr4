@@ -23,3 +23,8 @@ strategies:
       slow: 50
       stop_loss_pips: 25
       take_profit_pips: 50
+
+backtest:
+  initial_balance: 10000
+  slippage_pips: 0.2
+  commission_per_million: 0

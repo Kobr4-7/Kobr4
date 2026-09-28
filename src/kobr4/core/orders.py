@@ -56,6 +56,10 @@ class Order(BaseModel):
 
     `id` est l'identifiant client : il permet de retrouver l'ordre chez le courtier
     sans jamais le renvoyer deux fois.
+
+    Le stop loss et le take profit sont exprimés en distance au prix d'exécution : le
+    courtier les pose au moment de l'exécution (`stopLossOnFill` chez OANDA), ce qui évite
+    un stop mal placé si le prix a bougé entre la décision et l'exécution.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -67,8 +71,8 @@ class Order(BaseModel):
     order_type: OrderType
     quantity: int = Field(gt=0)
     price: Price | None = Field(default=None, gt=0)
-    stop_loss: Price = Field(gt=0)
-    take_profit: Price | None = Field(default=None, gt=0)
+    stop_loss_distance: Price = Field(gt=0)
+    take_profit_distance: Price | None = Field(default=None, gt=0)
     status: OrderStatus = OrderStatus.CREATED
     broker_order_id: str | None = None
     filled_quantity: int = Field(default=0, ge=0)
@@ -83,13 +87,21 @@ class Order(BaseModel):
             raise ValueError("quantité exécutée supérieure à la quantité de l'ordre")
         if self.order_type is not OrderType.MARKET and self.price is None:
             raise ValueError(f"un ordre {self.order_type} exige un prix")
-        if self.price is not None:
-            _check_protection(self.side, self.price, self.stop_loss, self.take_profit)
         return self
 
     @property
     def remaining_quantity(self) -> int:
         return self.quantity - self.filled_quantity
+
+    def protection_prices(self, fill_price: Price) -> tuple[Price, Price | None]:
+        """Prix du stop loss et du take profit pour une exécution à `fill_price`."""
+        sl = fill_price - self.side.sign * self.stop_loss_distance
+        tp = (
+            None
+            if self.take_profit_distance is None
+            else fill_price + self.side.sign * self.take_profit_distance
+        )
+        return sl, tp
 
     def transition(self, target: OrderStatus, ts: datetime, **changes: object) -> "Order":
         """Renvoie une copie de l'ordre dans le nouvel état, ou lève InvalidTransitionError."""
@@ -112,13 +124,3 @@ class Order(BaseModel):
         avg = (prev_notional + fill.price * fill.quantity) / filled
         target = OrderStatus.FILLED if filled == self.quantity else OrderStatus.PARTIALLY_FILLED
         return self.transition(target, fill.ts, filled_quantity=filled, avg_fill_price=avg)
-
-
-def _check_protection(
-    side: Side, price: Price, stop_loss: Price, take_profit: Price | None
-) -> None:
-    """Le stop loss doit être du côté perdant, le take profit du côté gagnant."""
-    if (stop_loss - price) * side.sign >= 0:
-        raise ValueError(f"stop loss {stop_loss} du mauvais côté pour un {side} à {price}")
-    if take_profit is not None and (take_profit - price) * side.sign <= 0:
-        raise ValueError(f"take profit {take_profit} du mauvais côté pour un {side} à {price}")

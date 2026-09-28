@@ -20,8 +20,8 @@ def make_order(t0: datetime, **kw: Any) -> Order:
         "side": Side.BUY,
         "order_type": OrderType.MARKET,
         "quantity": 40_000,
-        "stop_loss": Decimal("1.07945"),
-        "take_profit": Decimal("1.08695"),
+        "stop_loss_distance": Decimal("0.0025"),
+        "take_profit_distance": Decimal("0.0050"),
         "created_at": t0,
         "updated_at": t0,
     }
@@ -117,26 +117,14 @@ def test_terminal_states() -> None:
 
 
 @pytest.mark.parametrize(
-    ("side", "price", "sl", "tp", "match"),
-    [
-        (Side.BUY, "1.0820", "1.0830", None, "stop loss"),
-        (Side.BUY, "1.0820", "1.0800", "1.0810", "take profit"),
-        (Side.SELL, "1.0820", "1.0800", None, "stop loss"),
-        (Side.SELL, "1.0820", "1.0840", "1.0830", "take profit"),
-    ],
+    ("side", "sl", "tp"),
+    [(Side.BUY, "1.07750", "1.08500"), (Side.SELL, "1.08250", "1.07500")],
 )
-def test_protection_on_wrong_side(
-    t0: datetime, side: Side, price: str, sl: str, tp: str | None, match: str
-) -> None:
-    with pytest.raises(ValidationError, match=match):
-        make_order(
-            t0,
-            side=side,
-            order_type=OrderType.LIMIT,
-            price=Decimal(price),
-            stop_loss=Decimal(sl),
-            take_profit=Decimal(tp) if tp else None,
-        )
+def test_protection_prices(t0: datetime, side: Side, sl: str, tp: str) -> None:
+    o = make_order(t0, side=side)
+    assert o.protection_prices(Decimal("1.08000")) == (Decimal(sl), Decimal(tp))
+    no_tp = make_order(t0, side=side, take_profit_distance=None)
+    assert no_tp.protection_prices(Decimal("1.08000"))[1] is None
 
 
 def test_pending_order_requires_price(t0: datetime) -> None:

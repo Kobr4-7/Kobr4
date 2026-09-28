@@ -9,7 +9,7 @@ import polars as pl
 
 from kobr4.core.instruments import INSTRUMENTS
 from kobr4.marketdata.quality import check_m1
-from kobr4.marketdata.sources import dukascopy
+from kobr4.marketdata.sources import dukascopy, synthetic
 from kobr4.marketdata.sources.histdata import read_histdata
 from kobr4.marketdata.store import ParquetBarStore
 
@@ -47,6 +47,14 @@ def add_parser(sub: "argparse._SubParsersAction[argparse.ArgumentParser]") -> No
     imp.add_argument("files", type=Path, nargs="+")
     imp.add_argument("--symbol", type=_symbols, required=True)
 
+    syn = cmds.add_parser(
+        "synth", help="générer un historique synthétique (tests uniquement, pas le marché réel)"
+    )
+    syn.add_argument("--symbols", type=_symbols, required=True)
+    syn.add_argument("--start", type=_date, required=True)
+    syn.add_argument("--end", type=_date, required=True)
+    syn.add_argument("--seed", type=int, default=0)
+
     info = cmds.add_parser("info", help="couverture et qualité de l'historique")
     info.add_argument("--symbols", type=_symbols, default=None)
     info.add_argument("--max-gap", type=int, default=30, help="trou signalé au-delà de N minutes")
@@ -59,6 +67,8 @@ def run(args: argparse.Namespace) -> int:
             return _download(store, args)
         case "import-histdata":
             return _import_histdata(store, args)
+        case "synth":
+            return _synth(store, args)
         case "info":
             return _info(store, args)
     raise AssertionError(args.data_cmd)
@@ -113,11 +123,36 @@ def _import_histdata(store: ParquetBarStore, args: argparse.Namespace) -> int:
     return 0
 
 
+def is_synthetic(store: ParquetBarStore) -> bool:
+    return (store.root / synthetic.MARKER).exists()
+
+
+def _synth(store: ParquetBarStore, args: argparse.Namespace) -> int:
+    if store.symbols() and not is_synthetic(store):
+        log.error(
+            "%s contient des données réelles : choisir un autre dossier avec --store", store.root
+        )
+        return 2
+    store.root.mkdir(parents=True, exist_ok=True)
+    (store.root / synthetic.MARKER).write_text(
+        "Données synthétiques générées par kobr4 data synth. Elles ne représentent pas le"
+        " marché réel.\n",
+        encoding="utf-8",
+    )
+    for symbol in args.symbols:
+        df = synthetic.generate_m1(symbol, args.start, args.end, seed=args.seed)
+        store.write_m1(symbol, df)
+        log.info("%s : %d bougies M1 synthétiques", symbol, df.height)
+    return 0
+
+
 def _info(store: ParquetBarStore, args: argparse.Namespace) -> int:
     symbols = args.symbols or store.symbols()
     if not symbols:
         print(f"Aucun historique dans {args.store}/")
         return 0
+    if is_synthetic(store):
+        print(f"ATTENTION : {args.store}/ contient des données SYNTHÉTIQUES, pas le marché réel.")
     for symbol in symbols:
         cov = store.coverage(symbol)
         if cov is None:

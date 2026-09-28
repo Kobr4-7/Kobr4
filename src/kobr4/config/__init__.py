@@ -1,4 +1,5 @@
 from kobr4.config.settings import (
+    BacktestSettings,
     BrokerSettings,
     ConfigError,
     Mode,
@@ -9,6 +10,7 @@ from kobr4.config.settings import (
 )
 
 __all__ = [
+    "BacktestSettings",
     "BrokerSettings",
     "ConfigError",
     "Mode",
