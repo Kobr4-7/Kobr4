@@ -48,20 +48,32 @@ def add_parser(sub: "argparse._SubParsersAction[argparse.ArgumentParser]") -> No
     opt.add_argument("--objective", choices=["sharpe", "calmar", "profit_factor"], default="sharpe")
     opt.add_argument("--workers", type=int, default=None)
 
-    tf = cmds.add_parser("train-filter", help="entraîner un filtre ML sur les trades d'une stratégie")
+    tf = cmds.add_parser(
+        "train-filter", help="entraîner un filtre ML sur les trades d'une stratégie"
+    )
     tf.add_argument("--config", required=True)
     tf.add_argument("--strategy", required=True)
     tf.add_argument("--store", type=Path, default=Path("data"))
     tf.add_argument("--start", type=_date, required=True)
     tf.add_argument("--end", type=_date, required=True)
-    tf.add_argument("--out", type=Path, default=None, help="dossier du modèle (défaut : <dir>/models/<stratégie>)")
+    tf.add_argument(
+        "--out",
+        type=Path,
+        default=None,
+        help="dossier du modèle (défaut : <dir>/models/<stratégie>)",
+    )
 
     cmds.add_parser("list", help="lister les propositions")
-    for name, help_ in (("approve", "accepter une proposition"), ("reject", "refuser une proposition")):
+    for name, help_ in (
+        ("approve", "accepter une proposition"),
+        ("reject", "refuser une proposition"),
+    ):
         p = cmds.add_parser(name, help=help_)
         p.add_argument("id")
         p.add_argument("--note", default="")
-    ap = cmds.add_parser("apply", help="appliquer une proposition acceptée à un fichier de configuration")
+    ap = cmds.add_parser(
+        "apply", help="appliquer une proposition acceptée à un fichier de configuration"
+    )
     ap.add_argument("id")
     ap.add_argument("--config", required=True, type=Path)
 
@@ -123,7 +135,9 @@ def _optimize(store: ProposalStore, args: argparse.Namespace) -> int:
 def _train_filter(args: argparse.Namespace) -> int:
     settings = load_settings(args.config)
     s = strategy_only(settings, args.strategy, {})
-    s = s.model_copy(update={"strategies": [s.strategies[0].model_copy(update={"ml_filter": None})]})
+    s = s.model_copy(
+        update={"strategies": [s.strategies[0].model_copy(update={"ml_filter": None})]}
+    )
     start = datetime.combine(args.start, time(), UTC)
     end = datetime.combine(args.end + timedelta(days=1), time(), UTC)
     bars = load_bars(ParquetBarStore(args.store), s, start, end)
@@ -149,7 +163,9 @@ def _train_filter(args: argparse.Namespace) -> int:
     print(("Filtre UTILE : " if r.useful else "Filtre NON retenu : ") + r.reason)
     print(f"Modèle enregistré dans {out}")
     if r.useful:
-        print(f"Pour l'utiliser : ajouter `ml_filter: {out}` à la stratégie {args.strategy}, puis la faire tourner en démo.")
+        print(
+            f"Pour l'utiliser : ajouter `ml_filter: {out}` à la stratégie {args.strategy}, puis la faire tourner en démo."
+        )
     return 0
 
 
@@ -182,10 +198,14 @@ def _apply(store: ProposalStore, args: argparse.Namespace) -> int:
         return 2
     backup = args.config.with_suffix(args.config.suffix + f".v{updated.version - 1}.bak")
     shutil.copy2(args.config, backup)
-    args.config.write_text(yaml.safe_dump(raw, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    args.config.write_text(
+        yaml.safe_dump(raw, allow_unicode=True, sort_keys=False), encoding="utf-8"
+    )
     load_settings(args.config)
     store.mark_applied(p.id)
-    print(f"{p.strategy_id} passe en version {updated.version} dans {args.config} (sauvegarde : {backup})")
+    print(
+        f"{p.strategy_id} passe en version {updated.version} dans {args.config} (sauvegarde : {backup})"
+    )
     print("À faire tourner en compte démo avant tout passage en réel.")
     return 0
 
@@ -209,7 +229,9 @@ def render_proposal(p: Proposal) -> str:
         + "</ul>"
     )
     hold = "".join(
-        f"<tr><td>{label}</td>{_row(r)[4:]}" for label, r in (("Proposé", p.holdout), ("Actuel", p.holdout_baseline)) if r
+        f"<tr><td>{label}</td>{_row(r)[4:]}"
+        for label, r in (("Proposé", p.holdout), ("Actuel", p.holdout_baseline))
+        if r
     )
     return f"""<!doctype html><html lang="fr"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>Proposition {html.escape(p.strategy_id)}</title>

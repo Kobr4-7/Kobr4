@@ -9,13 +9,13 @@ import yaml
 
 from kobr4.app import main
 from kobr4.config.settings import Settings, StrategySettings, load_settings
+from kobr4.core.types import Timeframe
 from kobr4.lab.optimizer import LabSettings, Optimizer, _neighbours
 from kobr4.lab.proposals import AcceptanceCriteria, Proposal, ProposalStatus, ProposalStore
 from kobr4.lab.stats import deflated_sharpe, expected_max_sharpe, stability
 from kobr4.lab.windows import Period, add_months, split_holdout, walk_forward
 from kobr4.marketdata.sources.synthetic import generate_m1
 from kobr4.marketdata.store import ParquetBarStore
-from kobr4.core.types import Timeframe
 from kobr4.strategies.base import ParamRange
 
 
@@ -91,18 +91,27 @@ def lab_settings() -> Settings:
             "broker": {"name": "simulated"},
             "risk": {"max_drawdown_pct": 40, "max_daily_loss_pct": 10},
             "strategies": [
-                {"id": "ema", "kind": "ema_cross", "instruments": ["EUR/USD"], "timeframe": "H1",
-                 "params": {"fast": 20, "slow": 50}},
+                {
+                    "id": "ema",
+                    "kind": "ema_cross",
+                    "instruments": ["EUR/USD"],
+                    "timeframe": "H1",
+                    "params": {"fast": 20, "slow": 50},
+                },
             ],
         }
     )
 
 
 def test_optimizer_end_to_end(synth: Path) -> None:
-    lab = LabSettings(train_months=6, test_months=3, holdout_months=3, trials=4, workers=1, min_trades=1)
+    lab = LabSettings(
+        train_months=6, test_months=3, holdout_months=3, trials=4, workers=1, min_trades=1
+    )
     messages: list[str] = []
     with ThreadPoolExecutor(1) as ex:
-        opt = Optimizer(lab_settings(), "ema", str(synth), lab, progress=messages.append, executor=ex)
+        opt = Optimizer(
+            lab_settings(), "ema", str(synth), lab, progress=messages.append, executor=ex
+        )
         p = opt.run(d(2023, 1), d(2024, 7))
     assert len(p.windows) == 3  # 15 mois d'étude : 6 + 3 mois, décalées de 3 mois
     assert p.holdout is not None
@@ -116,7 +125,9 @@ def test_optimizer_end_to_end(synth: Path) -> None:
     assert any("réglage final" in m for m in messages)
     # Deux exécutions avec la même graine donnent la même proposition.
     with ThreadPoolExecutor(1) as ex:
-        again = Optimizer(lab_settings(), "ema", str(synth), lab, executor=ex).run(d(2023, 1), d(2024, 7))
+        again = Optimizer(lab_settings(), "ema", str(synth), lab, executor=ex).run(
+            d(2023, 1), d(2024, 7)
+        )
     assert again.proposed_params == p.proposed_params
 
 
@@ -127,11 +138,26 @@ def test_optimizer_rejects_unknown_strategy(synth: Path) -> None:
 
 def proposal(status: ProposalStatus = ProposalStatus.PROPOSED, version: int = 1) -> Proposal:
     return Proposal(
-        id="p1", created_at=d(2026, 1), strategy_id="ema-cross-h1", kind="ema_cross",
-        base_version=version, current_params={"fast": 20}, proposed_params={"fast": 12, "slow": 40},
-        objective="sharpe", trials=10, windows=[], oos_total_return_pct=5.0, oos_sharpe=0.8,
-        oos_max_drawdown_pct=6.0, oos_trades=40, holdout=None, holdout_baseline=None,
-        stability=0.8, deflated_sharpe=0.97, criteria=AcceptanceCriteria(), status=status,
+        id="p1",
+        created_at=d(2026, 1),
+        strategy_id="ema-cross-h1",
+        kind="ema_cross",
+        base_version=version,
+        current_params={"fast": 20},
+        proposed_params={"fast": 12, "slow": 40},
+        objective="sharpe",
+        trials=10,
+        windows=[],
+        oos_total_return_pct=5.0,
+        oos_sharpe=0.8,
+        oos_max_drawdown_pct=6.0,
+        oos_trades=40,
+        holdout=None,
+        holdout_baseline=None,
+        stability=0.8,
+        deflated_sharpe=0.97,
+        criteria=AcceptanceCriteria(),
+        status=status,
     )
 
 
@@ -151,8 +177,13 @@ def test_proposal_lifecycle(tmp_path: Path) -> None:
 
 
 def test_apply_to_checks_version() -> None:
-    st = StrategySettings(id="ema-cross-h1", kind="ema_cross", instruments=["EUR/USD"], timeframe=Timeframe.H1,
-                          params={"fast": 20, "slow": 50, "stop_loss_pips": 25})
+    st = StrategySettings(
+        id="ema-cross-h1",
+        kind="ema_cross",
+        instruments=["EUR/USD"],
+        timeframe=Timeframe.H1,
+        params={"fast": 20, "slow": 50, "stop_loss_pips": 25},
+    )
     new = proposal().apply_to(st)
     assert new.version == 2
     assert new.params == {"fast": 12, "slow": 40, "stop_loss_pips": 25}
