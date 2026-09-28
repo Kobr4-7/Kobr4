@@ -46,7 +46,11 @@ class Tick(_Frozen):
 
 
 class Bar(_Frozen):
-    """Bougie OHLC. `open_time` est le début de la période."""
+    """Bougie OHLC au prix bid. `open_time` est le début de la période.
+
+    `spread` est l'écart moyen ask - bid sur la période, quand la source le fournit.
+    Le prix ask s'en déduit : ask ≈ bid + spread.
+    """
 
     symbol: str
     timeframe: Timeframe
@@ -55,7 +59,8 @@ class Bar(_Frozen):
     high: Price = Field(gt=0)
     low: Price = Field(gt=0)
     close: Price = Field(gt=0)
-    volume: int = Field(default=0, ge=0)
+    spread: Price | None = Field(default=None, ge=0)
+    volume: Decimal = Field(default=Decimal(0), ge=0)
 
     @model_validator(mode="after")
     def _check_range(self) -> Self:

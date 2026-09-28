@@ -84,7 +84,9 @@ Modèles du domaine et infrastructure commune, sans dépendance vers un courtier
 - Normalisation des cotations en `Tick` (bid, ask, heure UTC).
 - Construction des bougies M1 → M5, M15, H1, H4, D1.
 - Détection de données périmées : si aucune cotation depuis N secondes pendant les heures de marché, émission de `MarketDataStale`, qui bloque les nouvelles entrées.
-- Téléchargement de l'historique pour le backtest.
+- Historique : bougies M1 bid avec le spread moyen, téléchargées depuis Dukascopy (gratuit) ou importées depuis HistData, stockées en Parquet. Les autres unités de temps sont calculées à la lecture.
+- Les périodes sont alignées sur l'heure UTC : H4 commence à 0h, 4h, 8h… et D1 à 0h UTC. Le même alignement est utilisé en backtest et en réel.
+- Contrôle qualité : trous hors week-end, bougies incohérentes, doublons (`kobr4 data info`).
 
 ### 4.3 Moteur de stratégies (`strategies`)
 Chaque stratégie implémente une interface unique :
@@ -266,8 +268,7 @@ PostgreSQL avec l'extension TimescaleDB pour les séries temporelles.
 | Table | Contenu | Type |
 |---|---|---|
 | `instruments` | Paires, taille du pip, décimales, taille de lot | référence |
-| `ticks` | Cotations bid/ask | hypertable, compressée après 7 jours |
-| `bars` | Bougies par unité de temps | hypertable |
+| `ticks` | Cotations bid/ask reçues en direct | hypertable, compressée après 7 jours |
 | `events` | Journal de tous les événements (JSON), en ajout seul | hypertable |
 | `orders` | Ordres et état courant | transactionnel |
 | `fills` | Exécutions | transactionnel |
@@ -275,6 +276,8 @@ PostgreSQL avec l'extension TimescaleDB pour les séries temporelles.
 | `account_snapshots` | Équité, marge, drawdown | hypertable |
 | `backtest_runs` | Paramètres, résultats, rapport | analytique |
 | `audit_log` | Actions humaines (arrêt, config, passage en réel) | ajout seul |
+
+L'historique des bougies n'est pas dans PostgreSQL : il est stocké en fichiers Parquet (`data/<EURUSD>/M1/<année>.parquet`), avec les prix en entiers (prix × 10^précision), ce qui est exact et rapide à lire pour les backtests.
 
 Redis sert de cache d'état en direct (dernier prix, positions, équité) pour l'API.
 
@@ -340,7 +343,8 @@ Le passage en réel est une action manuelle, enregistrée dans l'audit, qui exig
 | 2 | Moteur maison, léger | NautilusTrader | Contrôle total sur le risque et l'OMS, et pas d'adaptateur OANDA officiel. NautilusTrader reste une option si le moteur maison devient trop coûteux à maintenir. |
 | 3 | Monolithe modulaire | Microservices dès le départ | Moins de pièces à faire tomber en panne. Le bus abstrait permet de découper plus tard. |
 | 4 | OANDA comme premier courtier | MetaTrader 5 | API REST propre, compte démo gratuit, fonctionne sous Linux. À confirmer selon la disponibilité pour un compte en France. |
-| 5 | PostgreSQL + TimescaleDB | InfluxDB, fichiers Parquet seuls | Une seule base pour les séries temporelles et les données transactionnelles. Parquet reste utilisé pour exporter les données de backtest. |
+| 5 | PostgreSQL + TimescaleDB pour le journal et les données en direct, Parquet pour l'historique des bougies | Tout dans TimescaleDB | Les backtests lisent des millions de bougies d'un coup : Parquet est plus rapide, sans serveur, et facile à copier. La base sert au journal, aux ordres et au suivi en direct. |
+| 8 | Périodes alignées sur l'heure UTC (D1 à 0h UTC) | Clôture de New York (17h heure de New York) | Simple et sans changement d'heure. À revoir si une stratégie journalière doit coller aux bougies du courtier. |
 | 6 | Taille calculée par le risque | Taille décidée par la stratégie | Une seule règle de dimensionnement, appliquée partout. |
 | 7 | Optimisation hors ligne, validée par un humain | Apprentissage en continu en réel | Le forex est très bruité : un bot qui s'ajuste seul en réel sur-apprend le bruit récent. Hors ligne, chaque changement est testé, versionné et réversible. |
 
@@ -384,4 +388,6 @@ Kobr4/
 | 6. Réel limité | Configuration réelle, audit, procédure d'arrêt | Critères du §9 remplis |
 | 7. Intelligence | Détection des régimes, allocation entre stratégies, filtre ML, propositions hebdomadaires dans le tableau de bord | Gain mesuré hors échantillon par rapport aux stratégies seules |
 
-**Avancement** : phase 0 terminée (modèles du domaine, cycle de vie des ordres, bus d'événements, horloges, configuration validée, CI).
+**Avancement**
+- Phase 0 terminée : modèles du domaine, cycle de vie des ordres, bus d'événements, horloges, configuration validée, CI.
+- Phase 1 en cours : historique M1 (Dukascopy, HistData), stockage Parquet, agrégation en H1/H4/D1, construction des bougies en direct, contrôle qualité. Reste : télécharger les 3 ans d'historique, puis l'adaptateur OANDA en lecture une fois le compte démo ouvert.
