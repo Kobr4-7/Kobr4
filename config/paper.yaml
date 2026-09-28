@@ -1,0 +1,33 @@
+# Paper trading sur le compte démo du courtier.
+# La clé API est lue dans la variable d'environnement KOBR4_BROKER_API_KEY.
+mode: paper
+base_currency: USD
+
+instruments: [EUR/USD, GBP/USD, USD/JPY, USD/CHF, AUD/USD, USD/CAD, EUR/GBP]
+
+broker:
+  name: oanda
+  environment: practice
+  api_key_env: KOBR4_BROKER_API_KEY
+
+risk:
+  risk_per_trade_pct: 1
+  max_open_positions: 5
+  max_positions_per_symbol_strategy: 1
+  max_currency_risk_pct: 3
+  max_daily_loss_pct: 3
+  max_drawdown_pct: 10
+  max_spread_multiplier: 2
+  news_blackout_minutes: 30
+
+strategies:
+  - id: ema-cross-h1
+    kind: ema_cross
+    instruments: [EUR/USD, GBP/USD, USD/JPY]
+    timeframe: H1
+    params:
+      fast: 20
+      slow: 50
+      stop_loss_pips: 25
+      take_profit_pips: 50
+      sessions: [london, new_york]

@@ -1,0 +1,25 @@
+# Backtest sur données historiques, avec le courtier simulé.
+mode: backtest
+base_currency: USD
+
+instruments: [EUR/USD, GBP/USD, USD/JPY]
+
+broker:
+  name: simulated
+
+risk:
+  risk_per_trade_pct: 1
+  max_open_positions: 5
+  max_daily_loss_pct: 3
+  max_drawdown_pct: 10
+
+strategies:
+  - id: ema-cross-h1
+    kind: ema_cross
+    instruments: [EUR/USD, GBP/USD, USD/JPY]
+    timeframe: H1
+    params:
+      fast: 20
+      slow: 50
+      stop_loss_pips: 25
+      take_profit_pips: 50

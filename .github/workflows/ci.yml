@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Installer
+        run: uv sync --locked
+      - name: Lint
+        run: uv run ruff check .
+      - name: Format
+        run: uv run ruff format --check .
+      - name: Typage
+        run: uv run mypy src tests
+      - name: Tests
+        run: uv run pytest
+      - name: Configurations livrées
+        run: |
+          uv run kobr4 --config config/paper.yaml
+          uv run kobr4 --config config/backtest.yaml

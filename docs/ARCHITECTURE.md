@@ -165,6 +165,39 @@ Positions, P&L réalisé et flottant, équité, marge, drawdown, statistiques pa
 - Alertes Telegram : crash, perte de connexion, arrêt par le risque, écart de réconciliation, ordre refusé par le courtier.
 - Contrôle de vie externe (heartbeat) : si le bot ne répond plus, alerte depuis l'extérieur du serveur.
 
+### 4.10 Laboratoire (`lab`)
+Le laboratoire cherche de meilleurs réglages et de meilleures combinaisons de stratégies, **hors ligne**. Il ne touche jamais au bot en réel : il produit des propositions, que l'on valide.
+
+| Capacité | Méthode |
+|---|---|
+| Optimisation des paramètres | Recherche bayésienne (Optuna) sur les paramètres déclarés par chaque stratégie |
+| Validation | Walk-forward (optimisation sur 2 ans, test sur les 6 mois suivants, décalage), dernière année réservée à la validation finale |
+| Protection contre la chance | Sharpe « dégonflé » selon le nombre d'essais, test de stabilité des paramètres voisins |
+| Régimes de marché | Classement de chaque période en tendance, range ou forte volatilité ; performance de chaque stratégie par régime |
+| Allocation | Part du capital par stratégie selon ses résultats récents, dans des bornes fixes |
+| Filtre ML (plus tard) | Modèle LightGBM qui estime la probabilité de réussite d'un signal à partir des trades enregistrés |
+
+Cycle :
+
+```mermaid
+flowchart LR
+    DATA[(Historique<br/>+ trades réels)] --> OPT[Optimisation<br/>walk-forward]
+    OPT --> VAL{Validation<br/>hors échantillon<br/>+ stabilité}
+    VAL -- échec --> ARCH[Archivé<br/>avec le rapport]
+    VAL -- succès --> PROP[Proposition<br/>versionnée]
+    PROP --> HUM{Validation<br/>humaine}
+    HUM -- refus --> ARCH
+    HUM -- accord --> DEMO[Compte démo]
+    DEMO --> LIVE[Réel]
+```
+
+Règles :
+- Le laboratoire relance l'optimisation une fois par semaine, le week-end, marché fermé.
+- Chaque configuration de stratégie est versionnée. Chaque trade enregistre la version qui l'a produit, et on peut revenir à une version précédente.
+- Aucun changement n'arrive en réel sans validation humaine dans le tableau de bord, puis un passage par le compte démo.
+- Le laboratoire ne peut pas modifier les limites du gestionnaire de risque.
+- Pas d'apprentissage en continu en réel : un modèle qui change pendant qu'il trade est instable et impossible à auditer.
+
 ## 5. Flux
 
 ### 5.1 D'une cotation à un ordre
@@ -204,12 +237,18 @@ stateDiagram-v2
     Envoyé --> Accepté
     Envoyé --> Refusé
     Envoyé --> Inconnu: délai dépassé
+    Envoyé --> Exécuté: ordre au marché
+    Envoyé --> PartiellementExécuté
     Inconnu --> Accepté: réconciliation
     Inconnu --> Refusé: réconciliation
+    Inconnu --> Exécuté: réconciliation
+    Inconnu --> PartiellementExécuté: réconciliation
+    Inconnu --> Annulé: réconciliation
     Accepté --> PartiellementExécuté
     Accepté --> Exécuté
     Accepté --> Annulé
     Accepté --> Expiré
+    PartiellementExécuté --> PartiellementExécuté
     PartiellementExécuté --> Exécuté
     PartiellementExécuté --> Annulé
     Exécuté --> [*]
@@ -250,6 +289,7 @@ Sauvegardes : dump quotidien de la base vers un stockage externe chiffré, réte
 | Qualité | `ruff` (lint + format), `mypy --strict`, `pytest`, `hypothesis` |
 | Modèles | `pydantic` v2 |
 | Calcul | `numpy`, `polars` (backtests) |
+| Laboratoire | `optuna` (optimisation), `lightgbm` (filtre ML, plus tard) |
 | Base | PostgreSQL 16 + TimescaleDB, `asyncpg`, migrations `alembic` |
 | Cache / état direct | Redis 7 |
 | API | FastAPI + Uvicorn |
@@ -302,6 +342,7 @@ Le passage en réel est une action manuelle, enregistrée dans l'audit, qui exig
 | 4 | OANDA comme premier courtier | MetaTrader 5 | API REST propre, compte démo gratuit, fonctionne sous Linux. À confirmer selon la disponibilité pour un compte en France. |
 | 5 | PostgreSQL + TimescaleDB | InfluxDB, fichiers Parquet seuls | Une seule base pour les séries temporelles et les données transactionnelles. Parquet reste utilisé pour exporter les données de backtest. |
 | 6 | Taille calculée par le risque | Taille décidée par la stratégie | Une seule règle de dimensionnement, appliquée partout. |
+| 7 | Optimisation hors ligne, validée par un humain | Apprentissage en continu en réel | Le forex est très bruité : un bot qui s'ajuste seul en réel sur-apprend le bruit récent. Hors ligne, chaque changement est testé, versionné et réversible. |
 
 ## 11. Organisation du dépôt
 
@@ -316,6 +357,7 @@ Kobr4/
 │   │   └── brokers/     # simulated.py, oanda.py, ib.py
 │   ├── portfolio/       # positions, P&L, statistiques
 │   ├── backtest/        # moteur de rejeu, rapports
+│   ├── lab/             # optimisation, walk-forward, régimes, allocation
 │   ├── storage/         # accès base, migrations
 │   ├── api/             # FastAPI
 │   ├── monitoring/      # métriques, alertes
@@ -335,7 +377,11 @@ Kobr4/
 | 0. Fondations | Dépôt, CI, modèles du domaine, bus, horloge, configuration | `pytest` et `mypy` passent en CI |
 | 1. Données | Adaptateur OANDA (lecture), stockage des cotations, bougies, téléchargement de l'historique | 3 ans de H1 sur 7 paires en base |
 | 2. Backtest | Courtier simulé, stratégie EMA, rapport | Rapport de backtest EMA reproductible |
+| 2b. Laboratoire | Optimisation Optuna, walk-forward, rapport de stabilité | Réglages EMA validés hors échantillon, rapport archivé |
 | 3. Risque + OMS | Toutes les règles du §4.4, machine à états, réconciliation | Tests couvrant chaque règle de refus |
 | 4. Paper trading | Déploiement VPS, supervision, alertes, OANDA démo | Bot en démo 24h/24 pendant 4 semaines |
 | 5. Tableau de bord | API + dashboard React connectés au bot | Maquette alimentée par les vraies données |
 | 6. Réel limité | Configuration réelle, audit, procédure d'arrêt | Critères du §9 remplis |
+| 7. Intelligence | Détection des régimes, allocation entre stratégies, filtre ML, propositions hebdomadaires dans le tableau de bord | Gain mesuré hors échantillon par rapport aux stratégies seules |
+
+**Avancement** : phase 0 terminée (modèles du domaine, cycle de vie des ordres, bus d'événements, horloges, configuration validée, CI).
