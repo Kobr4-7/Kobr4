@@ -176,6 +176,10 @@ def finnhub_feed(api_key: str, connect_ws: Connector) -> FinnhubFeed:
 
 
 class PaperBroker(SimulatedBroker):
+    stale_after = 300.0
+    """Finnhub n'envoie une cotation que quand le prix change : la nuit, une paire
+    calme peut rester plus d'une minute sans cotation sans que le flux soit coupé."""
+
     def __init__(
         self,
         api_key: str,

@@ -128,7 +128,13 @@ class LiveBot:
             for sym in st.instruments:
                 timeframes.setdefault(sym, set()).add(st.timeframe)
         self.market = MarketData(
-            self.bus, broker, self.prices, self.clock, self.symbols, timeframes
+            self.bus,
+            broker,
+            self.prices,
+            self.clock,
+            self.symbols,
+            timeframes,
+            stale_after=getattr(broker, "stale_after", 60.0),
         )
         self.metrics = BotMetrics(bot_id, self.bus)
         self.journal = Journal(db, bot_id, self.bus) if db is not None else None

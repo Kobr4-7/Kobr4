@@ -21,7 +21,7 @@ GOOD_KEY = "cle-finnhub-valide"
 
 def finnhub(request: httpx.Request) -> httpx.Response:
     assert request.url.host == "finnhub.io"
-    if request.url.params.get("token") != GOOD_KEY:
+    if request.headers.get("X-Finnhub-Token") != GOOD_KEY:
         return httpx.Response(401, json={"error": "Invalid API key."})
     return httpx.Response(200, json={"c": 230.1})
 

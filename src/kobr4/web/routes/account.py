@@ -105,7 +105,11 @@ async def check_finnhub_key(key: str, transport: Any = None) -> None:
     """Vérifie la clé Finnhub par une requête gratuite (cotation d'une action US)."""
     async with httpx.AsyncClient(timeout=10, transport=transport) as c:
         try:
-            resp = await c.get(f"{FINNHUB_API}/quote", params={"symbol": "AAPL", "token": key})
+            resp = await c.get(
+                f"{FINNHUB_API}/quote",
+                params={"symbol": "AAPL"},
+                headers={"X-Finnhub-Token": key},
+            )
         except httpx.HTTPError as e:
             raise HTTPException(
                 status.HTTP_502_BAD_GATEWAY, f"Finnhub injoignable ({e.__class__.__name__})"

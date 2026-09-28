@@ -61,6 +61,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s : %(message)s"
     )
+    # httpx journalise chaque URL appelée, clés d'API comprises (Finnhub, Telegram…).
+    for noisy in ("httpx", "httpcore"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
     if args.cmd == "data":
         return data_cli.run(args)
     if args.cmd == "backtest":
