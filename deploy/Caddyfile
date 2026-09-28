@@ -1,0 +1,13 @@
+# HTTPS automatique (Let's Encrypt) pour le domaine défini dans deploy/.env.
+{$KOBR4_DOMAIN} {
+	encode zstd gzip
+	# Les métriques ne sortent pas du serveur.
+	@metrics path /metrics
+	respond @metrics 404
+	reverse_proxy app:8000
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+}

@@ -17,3 +17,6 @@ lab/
 frontend/node_modules/
 frontend/dist/
 *.tsbuildinfo
+deploy/.env
+deploy/secrets/
+backups/

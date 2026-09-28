@@ -1,0 +1,21 @@
+groups:
+  - name: kobr4
+    rules:
+      - alert: CotationsInterrompues
+        expr: time() - kobr4_last_tick_timestamp_seconds > 300 and on() (day_of_week() > 0 and day_of_week() < 6)
+        for: 5m
+        annotations:
+          summary: "Plus de cotations depuis 5 minutes sur {{ $labels.symbol }} (bot {{ $labels.bot }})"
+      - alert: ArretDUrgence
+        expr: kobr4_kill_switch == 1
+        annotations:
+          summary: "Arrêt d'urgence actif sur le bot {{ $labels.bot }}"
+      - alert: EcartReconciliation
+        expr: increase(kobr4_reconciliation_mismatches_total[15m]) > 0
+        annotations:
+          summary: "Écart entre le bot {{ $labels.bot }} et le courtier"
+      - alert: LatenceOrdres
+        expr: histogram_quantile(0.95, rate(kobr4_signal_to_order_seconds_bucket[30m])) > 1
+        for: 15m
+        annotations:
+          summary: "Ordres lents (95e centile > 1 s) sur le bot {{ $labels.bot }}"

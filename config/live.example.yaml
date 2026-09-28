@@ -1,0 +1,26 @@
+# Modèle pour `kobr4 run` en argent réel, sans la plateforme web.
+# Copier en config/live.yaml (jamais versionné). Avec la plateforme web, le passage en
+# réel se fait depuis la page du bot, avec ses garde-fous.
+mode: live
+confirm_live: false   # à passer à true en connaissance de cause
+base_currency: USD
+instruments: [EUR/USD]
+
+broker:
+  name: oanda
+  environment: live
+  api_key_env: KOBR4_BROKER_API_KEY
+
+risk:
+  risk_per_trade_pct: 0.5
+  max_open_positions: 3
+  max_currency_risk_pct: 1.5
+  max_daily_loss_pct: 2
+  max_drawdown_pct: 8
+
+strategies:
+  - id: ema-cross-h1
+    kind: ema_cross
+    instruments: [EUR/USD]
+    timeframe: H1
+    params: {fast: 20, slow: 50, stop_loss_pips: 25, take_profit_pips: 50}
