@@ -12,6 +12,7 @@ from kobr4.marketdata.quality import check_m1
 from kobr4.marketdata.sources import dukascopy, synthetic
 from kobr4.marketdata.sources.histdata import read_histdata
 from kobr4.marketdata.store import ParquetBarStore
+from kobr4.paths import data_dir
 
 log = logging.getLogger("kobr4.data")
 
@@ -33,7 +34,7 @@ def _date(value: str) -> date:
 
 def add_parser(sub: "argparse._SubParsersAction[argparse.ArgumentParser]") -> None:
     data = sub.add_parser("data", help="historique des prix")
-    data.add_argument("--store", type=Path, default=Path("data"), help="dossier de stockage")
+    data.add_argument("--store", type=Path, default=data_dir(), help="dossier de stockage")
     cmds = data.add_subparsers(dest="data_cmd", required=True)
 
     dl = cmds.add_parser("download", help="télécharger l'historique M1 depuis Dukascopy")

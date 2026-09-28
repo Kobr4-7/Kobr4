@@ -11,6 +11,7 @@ from kobr4.backtest.report import write_report
 from kobr4.config import ConfigError, load_settings
 from kobr4.marketdata.cli import is_synthetic
 from kobr4.marketdata.store import ParquetBarStore
+from kobr4.paths import data_dir, reports_dir
 from kobr4.risk.calendar import EconomicCalendar
 
 log = logging.getLogger("kobr4.backtest")
@@ -26,10 +27,10 @@ def _date(value: str) -> date:
 def add_parser(sub: "argparse._SubParsersAction[argparse.ArgumentParser]") -> None:
     p = sub.add_parser("backtest", help="rejouer l'historique avec les stratégies configurées")
     p.add_argument("--config", required=True, help="fichier de configuration YAML")
-    p.add_argument("--store", type=Path, default=Path("data"), help="dossier de l'historique")
+    p.add_argument("--store", type=Path, default=data_dir(), help="dossier de l'historique")
     p.add_argument("--start", type=_date, default=None)
     p.add_argument("--end", type=_date, default=None, help="dernier jour inclus")
-    p.add_argument("--out", type=Path, default=Path("reports"), help="dossier des rapports")
+    p.add_argument("--out", type=Path, default=reports_dir(), help="dossier des rapports")
     p.add_argument("--name", default=None, help="nom du rapport")
 
 

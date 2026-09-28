@@ -19,6 +19,7 @@ from kobr4.lab.optimizer import LabSettings, Optimizer
 from kobr4.lab.proposals import PeriodResult, Proposal, ProposalStatus, ProposalStore
 from kobr4.marketdata.cli import is_synthetic
 from kobr4.marketdata.store import ParquetBarStore
+from kobr4.paths import data_dir, lab_dir
 
 log = logging.getLogger("kobr4.lab")
 
@@ -32,13 +33,13 @@ def _date(value: str) -> date:
 
 def add_parser(sub: "argparse._SubParsersAction[argparse.ArgumentParser]") -> None:
     lab = sub.add_parser("lab", help="laboratoire : optimisation et propositions de réglages")
-    lab.add_argument("--dir", type=Path, default=Path("lab"), help="dossier des propositions")
+    lab.add_argument("--dir", type=Path, default=lab_dir(), help="dossier des propositions")
     cmds = lab.add_subparsers(dest="lab_cmd", required=True)
 
     opt = cmds.add_parser("optimize", help="optimiser une stratégie (walk-forward)")
     opt.add_argument("--config", required=True)
     opt.add_argument("--strategy", required=True, help="identifiant de la stratégie")
-    opt.add_argument("--store", type=Path, default=Path("data"))
+    opt.add_argument("--store", type=Path, default=data_dir())
     opt.add_argument("--start", type=_date, required=True)
     opt.add_argument("--end", type=_date, required=True, help="dernier jour inclus")
     opt.add_argument("--train-months", type=int, default=24)
@@ -53,7 +54,7 @@ def add_parser(sub: "argparse._SubParsersAction[argparse.ArgumentParser]") -> No
     )
     tf.add_argument("--config", required=True)
     tf.add_argument("--strategy", required=True)
-    tf.add_argument("--store", type=Path, default=Path("data"))
+    tf.add_argument("--store", type=Path, default=data_dir())
     tf.add_argument("--start", type=_date, required=True)
     tf.add_argument("--end", type=_date, required=True)
     tf.add_argument(
