@@ -89,7 +89,7 @@ def _download(store: ParquetBarStore, args: argparse.Namespace) -> int:
             ):
                 days += 1
                 batch.append(df)
-                if len(batch) >= 30:
+                if len(batch) >= 5:
                     rows += store.write_m1(symbol, pl.concat(batch))
                     batch.clear()
                     log.info("%s : %s atteint, %d bougies M1", symbol, day, rows)
