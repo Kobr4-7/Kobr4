@@ -1,0 +1,47 @@
+# Comparaison de stratégies de tendance sur l'or (XAU/USD, H1).
+# Pour l'or, 1 pip = 1 $ : un stop de 25 pips = 25 $ par once.
+# Lancer : kobr4 backtest --config config/backtest-or.yaml --start 2019-01-01
+mode: backtest
+base_currency: USD
+
+instruments: [XAU/USD]
+
+broker:
+  name: simulated
+
+risk:
+  risk_per_trade_pct: 1
+  max_open_positions: 3
+  max_currency_risk_pct: 3
+  max_daily_loss_pct: 3
+  max_drawdown_pct: 20
+
+strategies:
+  - id: or-tsmom
+    kind: tsmom
+    instruments: [XAU/USD]
+    timeframe: H1
+
+  - id: or-ema
+    kind: ema_cross
+    instruments: [XAU/USD]
+    timeframe: H1
+    params:
+      fast: 32
+      slow: 128
+      stop_loss_pips: 30
+      take_profit_pips: 90
+
+  - id: or-cassure
+    kind: breakout
+    instruments: [XAU/USD]
+    timeframe: H1
+    params:
+      lookback: 120
+      atr_stop: 2.5
+      take_profit_pips: 150
+
+backtest:
+  initial_balance: 10000
+  slippage_pips: 0.05
+  commission_per_million: 0

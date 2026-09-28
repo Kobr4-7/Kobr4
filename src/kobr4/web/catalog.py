@@ -18,6 +18,13 @@ DESCRIPTIONS: dict[str, dict[str, str]] = {
         "summary": "Achète quand le RSI sort de la survente, vend quand il sort du surachat,"
         " seulement si la tendance n'est pas trop forte (ADX). Adapté aux marchés en range.",
     },
+    "tsmom": {
+        "name": "Momentum temporel (TSMOM)",
+        "family": "Tendance",
+        "summary": "Suit le sens des rendements passés sur trois horizons (semaine, mois,"
+        " trimestre en H1), avec un stop en multiples de l'ATR et sans objectif. La mieux"
+        " documentée des stratégies de tendance ; gagne dans les tendances, patiente sinon.",
+    },
     "breakout": {
         "name": "Cassure de range",
         "family": "Volatilité",

@@ -188,7 +188,12 @@ async def test_proposal_decision_and_apply(env: Env) -> None:
 async def test_catalog_and_coverage(env: Env) -> None:
     await env.signup()
     cat = (await env.client.get("/api/catalog")).json()
-    assert {s["kind"] for s in cat["strategies"]} == {"ema_cross", "rsi_reversion", "breakout"}
+    assert {s["kind"] for s in cat["strategies"]} == {
+        "ema_cross",
+        "rsi_reversion",
+        "breakout",
+        "tsmom",
+    }
     assert "fast" in next(s for s in cat["strategies"] if s["kind"] == "ema_cross")["params"]
     assert set(cat["risk_presets"]) == {"prudent", "equilibre", "dynamique"}
     cov = (await env.client.get("/api/data/coverage")).json()

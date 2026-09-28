@@ -1,5 +1,5 @@
 from collections.abc import Sequence
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -72,7 +72,7 @@ def position(t0: datetime, side: Side) -> Position:
 
 
 def test_registry() -> None:
-    assert set(STRATEGIES) == {"ema_cross", "rsi_reversion", "breakout"}
+    assert set(STRATEGIES) == {"ema_cross", "rsi_reversion", "breakout", "tsmom"}
     with pytest.raises(ValueError, match="type inconnu"):
         create_strategy(settings("martingale"))
 
@@ -166,3 +166,29 @@ def test_breakout_with_atr_stop(t0: datetime) -> None:
     assert last[0].side is Side.BUY
     assert last[0].stop_loss_pips != 25  # stop calculé sur l'ATR
     assert all(step == [] for step in out[:5])
+
+
+def test_tsmom_follows_trend_and_exits_on_reversal() -> None:
+    t0 = datetime(2024, 1, 1, tzinfo=UTC)
+    s = create_strategy(settings("tsmom", short=10, medium=20, long=40, vol_halflife=20))
+    ctx = Ctx(t0)
+    # Marche aléatoire déterministe autour de 1,10, puis une tendance haussière nette.
+    noise = [1.10 + 0.0005 * ((i * 7) % 5 - 2) for i in range(60)]
+    up = [noise[-1] + 0.0004 * i for i in range(1, 30)]
+    out = feed(s, ctx, bars(t0, noise + up))
+    buys = [i for step in out for i in step if isinstance(i, OrderIntent)]
+    assert buys, "une tendance haussière doit déclencher un achat"
+    assert buys[0].side is Side.BUY
+    assert buys[0].take_profit_pips is None
+    assert buys[0].stop_loss_pips > 0
+    ctx.open.append(position(t0, Side.BUY))
+    down = [up[-1] - 0.0006 * i for i in range(1, 60)]
+    out = feed(s, ctx, bars(t0 + timedelta(hours=len(noise + up)), [up[-1], *down]))
+    closes = [i for step in out for i in step if isinstance(i, CloseIntent)]
+    assert closes, "un retournement doit fermer l'achat"
+    assert closes[0].side is Side.BUY
+
+
+def test_tsmom_horizons_must_increase() -> None:
+    with pytest.raises(ValidationError, match="croissants"):
+        create_strategy(settings("tsmom", short=100, medium=50, long=200))

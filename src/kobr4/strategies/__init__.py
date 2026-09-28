@@ -5,9 +5,10 @@ from kobr4.strategies.base import Strategy
 from kobr4.strategies.breakout import Breakout
 from kobr4.strategies.ema_cross import EmaCross
 from kobr4.strategies.rsi_reversion import RsiReversion
+from kobr4.strategies.tsmom import Tsmom
 
 STRATEGIES: dict[str, type[Strategy]] = {
-    cls.kind: cls for cls in (EmaCross, RsiReversion, Breakout)
+    cls.kind: cls for cls in (EmaCross, RsiReversion, Breakout, Tsmom)
 }
 
 
