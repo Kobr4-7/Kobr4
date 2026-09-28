@@ -5,11 +5,18 @@ description = "Bot de trading forex Kobr4 FX"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "aiosqlite>=0.22.1",
+    "alembic>=1.20.0",
+    "asyncpg>=0.31.0",
+    "cryptography>=50.0.1",
+    "httpx>=0.28.1",
     "numpy>=2.5.3",
     "optuna>=5.0.0",
     "polars>=1.44.2",
+    "prometheus-client>=0.26.0",
     "pydantic>=2.8",
     "pyyaml>=6.0",
+    "sqlalchemy[asyncio]>=2.1.1",
 ]
 
 [project.scripts]
@@ -60,3 +67,6 @@ addopts = "-q"
 [tool.ruff.lint.per-file-ignores]
 "src/kobr4/backtest/report.py" = ["E501"]
 "src/kobr4/lab/cli.py" = ["E501"]
+"src/kobr4/live/metrics.py" = ["E501"]
+"src/kobr4/live/alerts.py" = ["E501"]
+"tests/**" = ["E501", "RUF059"]

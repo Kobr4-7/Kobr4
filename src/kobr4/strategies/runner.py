@@ -7,7 +7,7 @@ from datetime import datetime
 from kobr4.core.bus import EventBus
 from kobr4.core.clock import Clock
 from kobr4.core.events import BarClosed, CloseRequested, SignalEmitted
-from kobr4.core.models import CloseIntent, Position
+from kobr4.core.models import Bar, CloseIntent, Position
 from kobr4.portfolio import Portfolio
 from kobr4.strategies.base import Strategy
 
@@ -36,6 +36,17 @@ class StrategyRunner:
         self.ctx = _Context(clock, portfolio)
         self.enabled: dict[str, bool] = {s.id: True for s in strategies}
         bus.subscribe(BarClosed, self._on_bar)
+
+    def warmup(self, bars: list[Bar]) -> int:
+        """Fait passer l'historique dans les stratégies pour amorcer leurs indicateurs,
+        sans publier d'intention. Renvoie le nombre de bougies utilisées."""
+        used = 0
+        for bar in sorted(bars, key=lambda b: (b.open_time, b.symbol)):
+            for strategy in self.strategies:
+                if bar.timeframe is strategy.timeframe and bar.symbol in strategy.instruments:
+                    strategy.on_bar(bar, self.ctx)
+                    used += 1
+        return used
 
     async def _on_bar(self, e: BarClosed) -> None:
         bar = e.bar

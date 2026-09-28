@@ -5,11 +5,13 @@ adaptateur qui la réalise.
 """
 
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator
 from decimal import Decimal
 from typing import Protocol
 
-from kobr4.core.models import Account, ClosedTrade, ExitReason, Position
+from kobr4.core.models import Account, Bar, ClosedTrade, ExitReason, Position, Tick
 from kobr4.core.orders import Order
+from kobr4.core.types import Timeframe
 
 
 class BrokerError(Exception):
@@ -72,3 +74,11 @@ class Broker(ABC):
     @abstractmethod
     async def find_order(self, order_id: str) -> Order | None:
         """Retrouve un ordre par son identifiant client (réconciliation)."""
+
+    def stream_prices(self, symbols: list[str]) -> AsyncIterator[Tick]:
+        """Flux de cotations en direct. Se termine si la connexion est perdue."""
+        raise NotImplementedError(f"{type(self).__name__} ne fournit pas de flux de prix")
+
+    async def history(self, symbol: str, timeframe: Timeframe, count: int) -> list[Bar]:
+        """Dernières bougies closes, pour amorcer les indicateurs au démarrage."""
+        raise NotImplementedError(f"{type(self).__name__} ne fournit pas d'historique")

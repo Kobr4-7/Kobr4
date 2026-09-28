@@ -94,7 +94,7 @@ def test_load_errors(tmp_path: Path) -> None:
 
 
 def test_cli(tmp_path: Path) -> None:
-    assert main(["run", "--config", str(ROOT / "config" / "paper.yaml")]) == 0
+    assert main(["run", "--config", str(ROOT / "config" / "paper.yaml"), "--check"]) == 0
     bad = tmp_path / "bad.yaml"
     bad.write_text("mode: paper\n", encoding="utf-8")
     assert main(["run", "--config", str(bad)]) == 2
