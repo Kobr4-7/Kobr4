@@ -16,3 +16,4 @@ data-synth/
 lab/
 frontend/node_modules/
 frontend/dist/
+*.tsbuildinfo
