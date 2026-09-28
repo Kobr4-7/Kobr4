@@ -1,36 +1,156 @@
-import { CandlestickSeries, ColorType, createChart, type IChartApi, type UTCTimestamp } from "lightweight-charts";
-import { useEffect, useRef } from "react";
+import {
+  CandlestickSeries,
+  ColorType,
+  createChart,
+  createSeriesMarkers,
+  LineStyle,
+  type IChartApi,
+  type IPriceLine,
+  type ISeriesApi,
+  type ISeriesMarkersPluginApi,
+  type SeriesMarker,
+  type Time,
+  type UTCTimestamp,
+} from "lightweight-charts";
+import { useEffect, useRef, useState } from "react";
+import type { Position, Trade } from "../api";
 
 function css(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
+/** Change de valeur à chaque changement de thème (clair ou sombre). */
+function useThemeKey(): number {
+  const [k, setK] = useState(0);
+  useEffect(() => {
+    const bump = () => setK((x) => x + 1);
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    window.addEventListener("kobr4:theme", bump);
+    mq.addEventListener("change", bump);
+    return () => {
+      window.removeEventListener("kobr4:theme", bump);
+      mq.removeEventListener("change", bump);
+    };
+  }, []);
+  return k;
+}
+
 export type Candle = { time: number; open: number; high: number; low: number; close: number };
 
-/** Graphique en chandeliers (bibliothèque lightweight-charts), aux couleurs du thème. */
-export function PriceChart({ candles, precision }: { candles: Candle[]; precision: number }) {
+const toSec = (iso: string) => Math.floor(Date.parse(iso) / 1000);
+
+/** Graphique en chandeliers avec les trades : flèches aux entrées, ronds aux sorties
+ *  (vert si gagnant, rouge sinon), lignes d'entrée, de stop et d'objectif des positions
+ *  ouvertes. Le graphique est créé une fois : le zoom est conservé aux rafraîchissements. */
+export function PriceChart({
+  candles,
+  precision,
+  step,
+  trades = [],
+  positions = [],
+}: {
+  candles: Candle[];
+  precision: number;
+  step: number;
+  trades?: Trade[];
+  positions?: Position[];
+}) {
   const box = useRef<HTMLDivElement>(null);
   const chart = useRef<IChartApi | null>(null);
+  const series = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const markers = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
+  const lines = useRef<IPriceLine[]>([]);
+  const fitted = useRef(false);
+  const themeKey = useThemeKey();
+
   useEffect(() => {
     if (!box.current) return;
     const c = createChart(box.current, {
       autoSize: true,
       localization: { locale: "fr-FR" },
-      layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: css("--muted"), fontFamily: "IBM Plex Mono, monospace", attributionLogo: false },
+      layout: {
+        background: { type: ColorType.Solid, color: "transparent" },
+        textColor: css("--muted"),
+        fontFamily: "JetBrains Mono, ui-monospace, monospace",
+        fontSize: 11,
+        attributionLogo: false,
+      },
       grid: { vertLines: { color: css("--line") }, horzLines: { color: css("--line") } },
       rightPriceScale: { borderColor: css("--line") },
-      timeScale: { borderColor: css("--line"), timeVisible: true },
+      timeScale: { borderColor: css("--line"), timeVisible: true, rightOffset: 6 },
+      crosshair: {
+        vertLine: { color: css("--faint"), labelBackgroundColor: css("--surface-3") },
+        horzLine: { color: css("--faint"), labelBackgroundColor: css("--surface-3") },
+      },
     });
     const s = c.addSeries(CandlestickSeries, {
-      upColor: css("--up"), downColor: css("--down"), borderVisible: false,
-      wickUpColor: css("--up"), wickDownColor: css("--down"),
+      upColor: css("--up"),
+      downColor: css("--down"),
+      borderVisible: false,
+      wickUpColor: css("--up"),
+      wickDownColor: css("--down"),
       priceFormat: { type: "price", precision, minMove: 1 / 10 ** precision },
     });
-    s.setData(candles.map((k) => ({ ...k, time: k.time as UTCTimestamp })));
-    c.timeScale().fitContent();
     chart.current = c;
-    return () => c.remove();
-  }, [candles, precision]);
+    series.current = s;
+    markers.current = createSeriesMarkers(s, []);
+    lines.current = [];
+    fitted.current = false;
+    return () => {
+      c.remove();
+      chart.current = null;
+      series.current = null;
+      markers.current = null;
+    };
+  }, [precision, themeKey]);
+
+  useEffect(() => {
+    const s = series.current;
+    if (!s || !chart.current) return;
+    s.setData(candles.map((k) => ({ ...k, time: k.time as UTCTimestamp })));
+    if (!fitted.current && candles.length) {
+      chart.current.timeScale().fitContent();
+      fitted.current = true;
+    }
+    // Trades : alignés sur le début de la bougie qui les contient.
+    const first = candles[0]?.time ?? 0;
+    const snap = (t: number) => (Math.floor(t / step) * step) as UTCTimestamp;
+    const up = css("--up"), down = css("--down"), accent = css("--accent");
+    const m: SeriesMarker<Time>[] = [];
+    for (const t of trades) {
+      const o = toSec(t.opened_at), c = toSec(t.closed_at);
+      const buy = t.side === "buy";
+      if (o >= first)
+        m.push({ time: snap(o), position: buy ? "belowBar" : "aboveBar", shape: buy ? "arrowUp" : "arrowDown", color: buy ? up : down });
+      if (c >= first) {
+        const win = Number(t.pnl) >= 0;
+        m.push({ time: snap(c), position: buy ? "aboveBar" : "belowBar", shape: "circle", color: win ? up : down });
+      }
+    }
+    for (const p of positions) {
+      const o = toSec(p.opened_at);
+      const buy = p.side === "buy";
+      if (o >= first)
+        m.push({ time: snap(o), position: buy ? "belowBar" : "aboveBar", shape: buy ? "arrowUp" : "arrowDown", color: accent });
+    }
+    m.sort((a, b) => (a.time as number) - (b.time as number));
+    markers.current?.setMarkers(m);
+    // Positions ouvertes : entrée, stop et objectif.
+    for (const l of lines.current) s.removePriceLine(l);
+    lines.current = [];
+    for (const p of positions) {
+      const buy = p.side === "buy";
+      lines.current.push(
+        s.createPriceLine({ price: Number(p.entry_price), color: accent, lineWidth: 1, lineStyle: LineStyle.Solid, axisLabelVisible: true, title: buy ? "Achat" : "Vente" }),
+        s.createPriceLine({ price: Number(p.stop_loss), color: down, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: "SL" }),
+      );
+      if (p.take_profit)
+        lines.current.push(
+          s.createPriceLine({ price: Number(p.take_profit), color: up, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: "TP" }),
+        );
+    }
+  }, [candles, trades, positions, step, themeKey]);
+
   return <div ref={box} className="chart-box" />;
 }
 

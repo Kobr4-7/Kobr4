@@ -1,5 +1,6 @@
 """Bots : création, réglages, marche/arrêt, arrêt d'urgence, historique, passage en réel."""
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -12,6 +13,7 @@ from kobr4.core.types import Timeframe
 from kobr4.db.models import BotEvent, BotRecord, BrokerConnection, EquityPoint, TradeRecord
 from kobr4.live.bot import LiveBot
 from kobr4.marketdata.store import ParquetBarStore
+from kobr4.web.chart import aggregate, merge
 from kobr4.web.deps import Auth, Current, DbSession, State, audit
 from kobr4.web.routes.account import bot_config
 from kobr4.web.security import verify_password, verify_totp
@@ -338,14 +340,15 @@ async def candles(
     await _own(s, a, bot_id)
     if symbol not in INSTRUMENTS:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "instrument inconnu")
+    store = ParquetBarStore(st.config.data_dir)
+    since = datetime.now(UTC) - timeframe.duration * count * 2 - timedelta(days=4)
+    try:
+        stored = await asyncio.to_thread(store.bars, symbol, timeframe, since, None)
+    except Exception:
+        stored = []  # fichier en cours d'écriture par un téléchargement : on réessaiera
     bot = st.supervisor.get(bot_id)
-    if bot is not None:
-        bars = await bot.broker.history(symbol, timeframe, count)
-    else:
-        store = ParquetBarStore(st.config.data_dir)
-        bars = store.bars(symbol, timeframe)[-count:]
-        if not bars:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, "bot arrêté et aucun historique local")
+    live = aggregate(bot.market.recent_m1(symbol), timeframe) if bot is not None else []
+    bars = merge(stored, live, count)
     return [
         {
             "time": int(b.open_time.timestamp()),

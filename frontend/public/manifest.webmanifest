@@ -1,12 +1,12 @@
 {
   "name": "Kobr4 FX",
   "short_name": "Kobr4",
-  "description": "Bot de trading forex",
+  "description": "Trading automatisé sur le forex et l'or",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#0E1318",
-  "theme_color": "#0B6E8A",
+  "background_color": "#07090d",
+  "theme_color": "#07090d",
   "lang": "fr",
   "icons": [
     { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },

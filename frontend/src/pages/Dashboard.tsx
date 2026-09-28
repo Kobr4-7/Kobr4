@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { api, ApiError, type Bot, type LiveStatus, type Trade } from "../api";
+import { api, ApiError, type Bot, type LiveStatus, type Position, type Trade } from "../api";
 import { PriceChart, type Candle } from "../components/charts";
 import { Kpi, Meter, ModePill, Notice, Panel, StatusPill } from "../components/ui";
 import { useLiveBots, useLoad, useToast } from "../context";
@@ -152,7 +152,7 @@ function BotDashboard({
             </div>
           }
         >
-          <CandlePanel botId={bot.id} symbol={symbol} timeframe={bot.config.strategies[0]?.timeframe ?? "H1"} running={running} />
+          <CandlePanel botId={bot.id} symbol={symbol} timeframe={bot.config.strategies[0]?.timeframe ?? "H1"} running={running} positions={live?.positions ?? []} />
           {live?.quotes[symbol] && (
             <div className="panel-b" style={{ paddingTop: 0 }}>
               <div className="row" style={{ justifyContent: "space-between" }}>
@@ -224,20 +224,52 @@ function BotDashboard({
   );
 }
 
-function CandlePanel({ botId, symbol, timeframe, running }: { botId: string; symbol: string; timeframe: string; running: boolean }) {
+const TF_SECONDS: Record<string, number> = { M15: 900, H1: 3600, H4: 14400, D1: 86400 };
+
+function CandlePanel({ botId, symbol, timeframe, running, positions }: { botId: string; symbol: string; timeframe: string; running: boolean; positions: Position[] }) {
   const [tf, setTf] = useState(timeframe);
-  const { data, error } = useLoad<Candle[]>(`/api/bots/${botId}/candles?symbol=${encodeURIComponent(symbol)}&timeframe=${tf}&count=200`, [running]);
-  const precision = symbol.endsWith("JPY") ? 3 : 5;
+  const [refresh, setRefresh] = useState(0);
+  useEffect(() => {
+    if (!running) return;
+    const t = window.setInterval(() => setRefresh((x) => x + 1), 20000);
+    return () => window.clearInterval(t);
+  }, [running]);
+  const { data, error } = useLoad<Candle[]>(`/api/bots/${botId}/candles?symbol=${encodeURIComponent(symbol)}&timeframe=${tf}&count=300`, [running, refresh]);
+  const { data: trades } = useLoad<Trade[]>(`/api/bots/${botId}/trades?limit=200`, [refresh]);
+  const precision = symbol.endsWith("JPY") || symbol === "XAU/USD" ? 3 : 5;
+  const mine = useMemo(() => (trades ?? []).filter((t) => t.symbol === symbol), [trades, symbol]);
+  const open = useMemo(() => positions.filter((p) => p.symbol === symbol), [positions, symbol]);
   return (
     <div>
       <div className="panel-b" style={{ paddingBottom: 0 }}>
-        <div className="seg" role="group" aria-label="Unité de temps">
-          {["M15", "H1", "H4", "D1"].map((t) => (
-            <button key={t} aria-pressed={t === tf} onClick={() => setTf(t)}>{t}</button>
-          ))}
+        <div className="row" style={{ justifyContent: "space-between" }}>
+          <div className="seg" role="group" aria-label="Unité de temps">
+            {["M15", "H1", "H4", "D1"].map((t) => (
+              <button key={t} aria-pressed={t === tf} onClick={() => setTf(t)}>{t}</button>
+            ))}
+          </div>
+          <div className="chart-legend">
+            <span><i className="lg-buy" />Achat</span>
+            <span><i className="lg-sell" />Vente</span>
+            <span><i className="lg-win" />Sortie gagnante</span>
+            <span><i className="lg-loss" />Sortie perdante</span>
+            <span><i className="lg-sl" />Stop</span>
+            <span><i className="lg-tp" />Objectif</span>
+          </div>
         </div>
       </div>
-      {error ? <div className="empty">{error}</div> : data ? <PriceChart candles={data} precision={precision} /> : <div className="chart-box" />}
+      {error ? (
+        <div className="empty">{error}</div>
+      ) : data && data.length === 0 ? (
+        <div className="chart-box chart-empty">
+          <p>Pas encore de bougies pour {symbol}.</p>
+          <p className="muted">Le bot les construit en direct à partir des prix : les premières apparaissent dans quelques minutes.</p>
+        </div>
+      ) : data ? (
+        <PriceChart candles={data} precision={precision} step={TF_SECONDS[tf] ?? 3600} trades={mine} positions={open} />
+      ) : (
+        <div className="chart-box chart-empty"><p className="muted">Chargement du graphique…</p></div>
+      )}
     </div>
   );
 }

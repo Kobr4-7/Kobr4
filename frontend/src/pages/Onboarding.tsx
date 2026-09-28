@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { api, ApiError, type BrokerConn, type Catalog, type StrategyConfig, type User } from "../api";
 import { DemoAccountForm } from "../components/demo";
+import { BrandMark } from "../components/Icons";
 import { RiskEditor, StrategyEditor, botPayload, defaultRisk, defaultStrategy, type RiskValues } from "../components/editors";
 import { Field, Notice } from "../components/ui";
 import { useAuth, useLoad, useToast } from "../context";
@@ -23,6 +24,12 @@ export function Onboarding() {
   return (
     <div className="center">
       <div className="card wide">
+        <div className="kicker" style={{ display: "flex" }}>
+          <BrandMark />
+          <div>
+            Kobr4<span>FX</span>
+          </div>
+        </div>
         <div className="steps" aria-label={`Étape ${idx + 1} sur ${ORDER.length}`}>
           {ORDER.map((s, i) => (
             <span key={s} className={i <= idx ? "done" : ""} />

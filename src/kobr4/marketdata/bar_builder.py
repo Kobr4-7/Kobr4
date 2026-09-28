@@ -64,6 +64,22 @@ class BarBuilder:
             p.spreads.append(tick.spread)
         return closed
 
+    def current(self) -> Bar | None:
+        """Bougie en cours (non close), pour l'affichage."""
+        p = self._pending
+        if p is None:
+            return None
+        return Bar(
+            symbol=self.instrument.symbol,
+            timeframe=self.timeframe,
+            open_time=p.open_time,
+            open=p.open,
+            high=p.high,
+            low=p.low,
+            close=p.close,
+            volume=Decimal(len(p.spreads)),
+        )
+
     def flush(self, now: datetime) -> list[Bar]:
         p = self._pending
         if p is None or now < p.open_time + self.timeframe.duration:

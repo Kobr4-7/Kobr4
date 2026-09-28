@@ -244,3 +244,19 @@ def test_calendar_feed_parsing() -> None:
     )
     assert [(e.currency, e.impact.value) for e in events] == [("USD", "high"), ("EUR", "medium")]
     assert events[0].ts == datetime(2026, 10, 2, 12, 30, tzinfo=UTC)
+
+
+async def test_chart_keeps_recent_m1_bars_for_every_symbol() -> None:
+    clock, bus = SimulatedClock(T0), InMemoryEventBus()
+    md = market(clock, bus)
+    for s, px in ((0, "1.08000"), (30, "1.08050"), (61, "1.08020")):
+        clock.set(T0 + timedelta(seconds=s))
+        await md.on_tick(tick(s, px))
+    await md.on_tick(tick(62, "1.25000", "GBP/USD"))
+    bars = md.recent_m1("EUR/USD")
+    assert [b.close for b in bars] == [
+        Decimal("1.08050"),
+        Decimal("1.08020"),
+    ]  # la dernière est en cours
+    assert [b.close for b in md.recent_m1("GBP/USD")] == [Decimal("1.25000")]
+    assert md.recent_m1("USD/JPY") == []

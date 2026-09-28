@@ -1,8 +1,81 @@
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, ApiError, type User } from "../api";
+import { BrandMark, IconPulse, IconShield, IconTarget } from "../components/Icons";
 import { Field, Notice } from "../components/ui";
 import { useAuth } from "../context";
+
+/** Mise en page des écrans d'accès : la marque à gauche, le formulaire à droite. */
+function AuthLayout({ children }: { children: ReactNode }) {
+  return (
+    <div className="auth">
+      <aside className="auth-side">
+        <div className="brand">
+          <BrandMark />
+          <div>
+            Kobr4<span>FX</span>
+          </div>
+        </div>
+        <div>
+          <h2>
+            Le trading automatisé, <em>avec la rigueur d'un desk pro</em>.
+          </h2>
+          <p className="lead">
+            Des stratégies testées sur des années d'historique, un risque encadré à chaque ordre, et un suivi en direct depuis
+            n'importe quel écran.
+          </p>
+        </div>
+        <svg className="auth-spark" viewBox="0 0 520 140" aria-hidden="true">
+          <defs>
+            <linearGradient id="auth-area" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#e3b85c" stopOpacity=".35" />
+              <stop offset="1" stopColor="#e3b85c" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          <path
+            d="M0 118 L40 110 L80 114 L120 96 L160 101 L200 84 L240 88 L280 66 L320 72 L360 52 L400 58 L440 36 L480 40 L520 18 L520 140 L0 140 Z"
+            fill="url(#auth-area)"
+          />
+          <path
+            d="M0 118 L40 110 L80 114 L120 96 L160 101 L200 84 L240 88 L280 66 L320 72 L360 52 L400 58 L440 36 L480 40 L520 18"
+            fill="none"
+            stroke="#e3b85c"
+            strokeWidth="2.5"
+            strokeLinejoin="round"
+          />
+          <circle cx="520" cy="18" r="5" fill="#f0cd7f" />
+        </svg>
+        <ul className="auth-feats">
+          <li>
+            <span className="ic"><IconTarget /></span>
+            <span><b>Stratégies éprouvées</b>Tendance, cassure, momentum : chacune testée frais compris avant la démo.</span>
+          </li>
+          <li>
+            <span className="ic"><IconShield /></span>
+            <span><b>Risque sous contrôle</b>Stop sur chaque position, limites de perte journalière et arrêt d'urgence.</span>
+          </li>
+          <li>
+            <span className="ic"><IconPulse /></span>
+            <span><b>Suivi en temps réel</b>Positions, résultats et alertes Telegram, sur ordinateur comme sur téléphone.</span>
+          </li>
+        </ul>
+        <p className="auth-foot">© {new Date().getFullYear()} Kobr4 FX · Le trading comporte un risque de perte en capital.</p>
+      </aside>
+      <main className="auth-main">{children}</main>
+    </div>
+  );
+}
+
+function Kicker() {
+  return (
+    <div className="kicker">
+      <BrandMark />
+      <div>
+        Kobr4<span>FX</span>
+      </div>
+    </div>
+  );
+}
 
 export function Login() {
   const { setUser } = useAuth();
@@ -38,11 +111,14 @@ export function Login() {
   };
 
   return (
-    <div className="center">
+    <AuthLayout>
       <form className="card" onSubmit={submit}>
+        <Kicker />
         <div>
-          <div className="label">Kobr4 FX</div>
-          <h1>{step === "password" ? "Connexion" : "Code de vérification"}</h1>
+          <h1>{step === "password" ? "Bon retour parmi nous" : "Code de vérification"}</h1>
+          <p className="muted" style={{ marginTop: 6 }}>
+            {step === "password" ? "Connecte-toi pour retrouver tes bots." : "Ouvre ton application d'authentification."}
+          </p>
         </div>
         {error && <Notice tone="error">{error}</Notice>}
         {step === "password" ? (
@@ -66,7 +142,7 @@ export function Login() {
           Pas encore de compte ? <Link to="/inscription">Créer un compte</Link>
         </p>
       </form>
-    </div>
+    </AuthLayout>
   );
 }
 
@@ -103,11 +179,12 @@ export function Signup() {
   };
 
   return (
-    <div className="center">
+    <AuthLayout>
       <form className="card" onSubmit={submit}>
+        <Kicker />
         <div>
-          <div className="label">Kobr4 FX</div>
           <h1>Créer un compte</h1>
+          <p className="muted" style={{ marginTop: 6 }}>Quelques secondes, puis on configure ton premier bot ensemble.</p>
         </div>
         {error && <Notice tone="error">{error}</Notice>}
         <Field label="Prénom ou pseudo" htmlFor="name">
@@ -130,6 +207,6 @@ export function Signup() {
           Déjà inscrit ? <Link to="/connexion">Se connecter</Link>
         </p>
       </form>
-    </div>
+    </AuthLayout>
   );
 }

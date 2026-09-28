@@ -1,6 +1,6 @@
 // Service worker minimal : garde la coquille du site pour un démarrage rapide et un
 // message clair hors connexion. Les données (API) ne sont jamais mises en cache.
-const CACHE = "kobr4-shell-v1";
+const CACHE = "kobr4-shell-v2";
 const SHELL = ["/", "/index.html", "/icon.svg", "/manifest.webmanifest"];
 
 self.addEventListener("install", (e) => {
