@@ -30,8 +30,8 @@ def test_shipped_configs_are_valid(name: str) -> None:
 
 
 def test_unknown_instrument() -> None:
-    with pytest.raises(ValidationError, match="XAU/USD"):
-        Settings.model_validate(base(instruments=["EUR/USD", "XAU/USD"]))
+    with pytest.raises(ValidationError, match="XAG/USD"):
+        Settings.model_validate(base(instruments=["EUR/USD", "XAG/USD"]))
 
 
 def test_strategy_instrument_must_be_declared() -> None:

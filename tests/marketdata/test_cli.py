@@ -83,7 +83,7 @@ def test_unknown_symbol_is_usage_error(tmp_path: Path) -> None:
                 str(tmp_path),
                 "download",
                 "--symbols",
-                "XAU/USD",
+                "XAG/USD",
                 "--start",
                 "2024-03-04",
             ]

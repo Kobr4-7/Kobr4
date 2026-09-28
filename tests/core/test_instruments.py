@@ -27,11 +27,18 @@ def test_round_price() -> None:
 
 
 def test_unknown_instrument() -> None:
-    with pytest.raises(KeyError, match="XAU/USD"):
-        get_instrument("XAU/USD")
+    with pytest.raises(KeyError, match="XAG/USD"):
+        get_instrument("XAG/USD")
 
 
 @pytest.mark.parametrize("symbol", ["EURUSD", "eur/usd", "EUR-USD", "EURO/USD"])
 def test_invalid_symbol(symbol: str) -> None:
     with pytest.raises(ValidationError):
         Instrument(symbol=symbol, pip_size=Decimal("0.0001"), price_precision=5)
+
+
+def test_gold() -> None:
+    gold = get_instrument("XAU/USD")
+    assert (gold.base, gold.quote) == ("XAU", "USD")
+    assert gold.round_price(Decimal("3812.34567")) == Decimal("3812.346")
+    assert gold.from_pips(Decimal(25)) == Decimal(25)  # stop de 25 pips = 25 $

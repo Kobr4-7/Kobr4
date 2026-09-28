@@ -50,6 +50,7 @@ SPREAD_PIPS = {
     "AUD/USD": Decimal("0.8"),
     "USD/CAD": Decimal("1.0"),
     "EUR/GBP": Decimal("0.9"),
+    "XAU/USD": Decimal("0.3"),  # 1 pip = 1 $ pour l'or
 }
 DEFAULT_SPREAD_PIPS = Decimal("1.2")
 KEEP_ORDERS = 200

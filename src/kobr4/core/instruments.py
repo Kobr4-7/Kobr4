@@ -1,4 +1,4 @@
-"""Instruments forex : taille du pip, précision des prix, conversions."""
+"""Instruments : paires de devises et or (XAU/USD) ; taille du pip, précision des prix."""
 
 import re
 from decimal import Decimal
@@ -58,20 +58,33 @@ def _major(symbol: str) -> Instrument:
     )
 
 
+GOLD = Instrument(
+    symbol="XAU/USD",
+    pip_size=Decimal("1"),
+    price_precision=3,
+    contract_size=100,
+)
+"""Or en dollars, une unité = une once. Le « pip » vaut 1 $ : les réglages des stratégies
+en pips (stop de 25 pips = 25 $) gardent ainsi une taille comparable, en proportion de la
+volatilité, à celle des paires de devises. Précision de 3 décimales, comme chez Dukascopy."""
+
 INSTRUMENTS: dict[str, Instrument] = {
-    s: _major(s)
-    for s in (
-        "EUR/USD",
-        "GBP/USD",
-        "USD/JPY",
-        "USD/CHF",
-        "AUD/USD",
-        "USD/CAD",
-        "NZD/USD",
-        "EUR/GBP",
-        "EUR/JPY",
-        "GBP/JPY",
-    )
+    "XAU/USD": GOLD,
+    **{
+        s: _major(s)
+        for s in (
+            "EUR/USD",
+            "GBP/USD",
+            "USD/JPY",
+            "USD/CHF",
+            "AUD/USD",
+            "USD/CAD",
+            "NZD/USD",
+            "EUR/GBP",
+            "EUR/JPY",
+            "GBP/JPY",
+        )
+    },
 }
 
 
